@@ -18,8 +18,8 @@ with open('README.md','r', encoding='utf-8') as f:
       long_description = f.read()
 
 setup(name='pathflow_mixmatch',
-      version='0.1.1',
-      description='Don\'t mix, match! Simple utilities for improved segmentation for Histopathology.',
+      version='0.1',
+      description='Don\'t mix, match! Simple utilities for improved registration of Histopathology Whole Slide Images.',
       url='https://github.com/jlevy44/PathFlow-MixMatch',
       author='Joshua Levy',
       author_email='joshualevy44@berkeley.edu',
