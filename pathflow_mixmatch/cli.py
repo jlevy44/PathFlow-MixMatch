@@ -1,4 +1,4 @@
-import fire
+img_import fire
 import numpy as np, cv2
 import cv2
 from skimage.morphology import watershed
@@ -64,7 +64,7 @@ def displace_image(img, displacement, gpu_device):
 	channels=[]
 	for i in range(3):
 		im=sitk.GetImageFromArray(img[...,i])
-		im=al.utils.image.create_tensor_image_from_itk_image(im, dtype=th.float32, device='cuda:{}'.format(gpu_device))
+		im=al.utils.image.create_tensor_image_from_itk_image(im, dtype=th.float32, device=('cuda:{}'.format(gpu_device) if gpu_device>=0 else 'cpu'))
 		channels.append(al.transformation.utils.warp_image(im, displacement).numpy())
 	return np.uint8(np.stack(channels).transpose((1,2,0)))
 
@@ -83,14 +83,14 @@ def displace_image(img, displacement, gpu_device):
 # limitations under the License.
 
 
-def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similarity', gpu_device=0):
+def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similarity', gpu_device=0, opt_cm=True, loss_fn='mse'):
 	assert transform_type in ['similarity', 'affine', 'rigid']
 	start = time.time()
 
 	# set the used data type
 	dtype = th.float32
 	# set the device for the computaion to CPU
-	device = th.device("cuda:{}".format(gpu_device))
+	device = th.device("cuda:{}".format(gpu_device) if gpu_device >=0 else 'cpu')
 
 	# In order to use a GPU uncomment the following line. The number is the device index of the used GPU
 	# Here, the GPU with the index 0 is used.
@@ -116,14 +116,21 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 				   rigid=al.transformation.pairwise.RigidTransformation)
 
 	# choose the affine transformation model
-	transformation = transforms[transform_type](moving_image, opt_cm=True)
+	transformation = transforms[transform_type](moving_image, opt_cm=opt_cm)
 	# initialize the translation with the center of mass of the fixed image
 	transformation.init_translation(fixed_image)
 
 	registration.set_transformation(transformation)
 
+	loss_fns=dict(mse=al.loss.pairwise.MSE,
+				ncc=al.loss.pairwise.NCC,
+				lcc=al.loss.pairwise.LCC,
+				mi=al.loss.pairwise.MI,
+				mgf=al.loss.pairwise.NGF,
+				ssim=al.loss.pairwise.SSIM)
+
 	# choose the Mean Squared Error as image loss
-	image_loss = al.loss.pairwise.MSE(fixed_image, moving_image)
+	image_loss = loss_fns[loss_fn](fixed_image, moving_image)
 
 	registration.set_image_loss([image_loss])
 
@@ -241,12 +248,44 @@ def rotate_image(mat, angle):
 # add moments, first image should have 1+ corresponding segments / 2 sections
 # while first has fewer sections
 # add mask !!!
-def register_images_(npy1='A.npy', npy2='B.npy', connectivity=8, apply_watershed=False, overwrite=False, min_object_size=50000, clip=True, fix_rotation=True, mult_factor=2.0, scaling_factor=4., output_dir='practice_reg_results/images', properties=['area','convex_area','eccentricity','major_axis_length','minor_axis_length','inertia_tensor','inertia_tensor_eigvals','perimeter','orientation'], gpu_device=0, max_rotation_vertical_px=0):
+def register_images_(im1_fname='A.npy',
+						im2_fname='B.npy',
+						connectivity=8,
+						apply_watershed=False,
+						overwrite=False,
+						min_object_size=50000,
+						clip=True,
+						fix_rotation=True,
+						mult_factor=2.0,
+						scaling_factor=4.,
+						output_dir='practice_reg_results/images',
+						properties=['area',
+									'convex_area',
+									'eccentricity',
+									'major_axis_length',
+									'minor_axis_length',
+									'inertia_tensor',
+									'inertia_tensor_eigvals',
+									'perimeter',
+									'orientation'],
+						gpu_device=0,
+						max_rotation_vertical_px=0,
+						loss_fn='mse',
+						lr=0.01,
+						transform_type='rigid',
+						iterations=1000):
 
 	print("Loading images.")
 
-	im1=np.load(npy1)
-	im2=np.load(npy2)
+	_, file_ext = os.path.splitext(im1_fname)
+
+	if file_ext=='.npy':
+		im1=np.load(im1_fname)
+		im2=np.load(im2_fname)
+	else:
+		im1=cv2.imread(im1_fname)
+		im2=cv2.imread(im2_fname)
+
 
 	if max_rotation_vertical_px:
 		scaling_factor=((sum(im1.shape[:2])+sum(im2.shape[:2]))/4.)/float(max_rotation_vertical_px)
@@ -278,19 +317,21 @@ def register_images_(npy1='A.npy', npy2='B.npy', connectivity=8, apply_watershed
 
 	N=len(sections)
 
-	del im1, im2
+	if file_ext=='.npy':
 
-	im1=np.load(npy1,mmap_mode='r+')
-	im2=np.load(npy2,mmap_mode='r+')
+		del im1, im2
+
+		im1=np.load(im1_fname,mmap_mode='r+')
+		im2=np.load(im2_fname,mmap_mode='r+')
 
 	print("Performing alignments on pairs of sections.")
 
 	for idx,(i,j) in enumerate(sections):
 
-		npy_out1=os.path.join(output_dir,os.path.basename(npy1)).replace('.npy','_{}.png'.format(idx))
-		npy_out2=os.path.join(output_dir,os.path.basename(npy2)).replace('.npy','_{}.png'.format(idx))
+		img_out1=os.path.join(output_dir,os.path.basename(im1_fname)).replace(file_ext,'_{}.png'.format(idx))
+		img_out2=os.path.join(output_dir,os.path.basename(im2_fname)).replace(file_ext,'_{}.png'.format(idx))
 
-		if os.path.exists(npy_out1)==False or os.path.exists(npy_out1)==False or overwrite:
+		if os.path.exists(img_out1)==False or os.path.exists(img_out1)==False or overwrite:
 
 			try:
 
@@ -329,14 +370,14 @@ def register_images_(npy1='A.npy', npy2='B.npy', connectivity=8, apply_watershed
 				print("[{}/{}] - Begin alignment of sections.".format(idx+1,N))
 
 				with suppress_stdout():
-					new_img=displace_image(img2,affine_register(img1, img2, gpu_device=gpu_device)[0],gpu_device=gpu_device) # new tri, output he as well
+					new_img=displace_image(img2,affine_register(img1, img2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations)[0],gpu_device=gpu_device) # new tri, output he as well
 
 				th.cuda.empty_cache()
 
 				print("[{}/{}] - Writing registered sections to file.".format(idx+1,N))
 
-				cv2.imwrite(npy_out1,cv2.cvtColor(img1,cv2.COLOR_BGR2RGB))
-				cv2.imwrite(npy_out2,cv2.cvtColor(new_img,cv2.COLOR_BGR2RGB))
+				cv2.imwrite(img_out1,cv2.cvtColor(img1,cv2.COLOR_BGR2RGB))
+				cv2.imwrite(img_out2,cv2.cvtColor(new_img,cv2.COLOR_BGR2RGB))
 
 			except Exception as e:
 				print(str(e))
@@ -346,8 +387,8 @@ class Commands(object):
 		pass
 
 	def register_images(self,
-							npy1='A.npy',
-							npy2='B.npy',
+							im1='A.npy',
+							im2='B.npy',
 							connectivity=8,
 							overwrite=False,
 							clip=True,
@@ -366,9 +407,13 @@ class Commands(object):
 										'inertia_tensor_eigvals',
 										'perimeter',
 										'orientation'],
-							gpu_device=0):
-		register_images_(npy1=npy1,
-							npy2=npy2,
+							gpu_device=0,
+							loss_fn='mse',
+							lr=0.01,
+							transform_type='rigid',
+							iterations=1000):
+		register_images_(im1_fname=im1,
+							im2_fname=im2,
 							connectivity=connectivity,
 							apply_watershed=False,
 							overwrite=overwrite,
@@ -380,7 +425,11 @@ class Commands(object):
 							output_dir=output_dir,
 							properties=properties,
 							gpu_device=gpu_device,
-							max_rotation_vertical_px=max_rotation_vertical_px)
+							max_rotation_vertical_px=max_rotation_vertical_px,
+							loss_fn=loss_fn,
+							lr=lr,
+							transform_type=transform_type,
+							iterations=iterations)
 
 def main():
 	fire.Fire(Commands)
