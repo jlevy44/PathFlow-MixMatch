@@ -23,6 +23,11 @@ Minimal working example:
 pathflow-mixmatch --im1 A.png --im2 B.png --fix_rotation False --output_dir output_registered_images/ --gpu_device 0 --transform_type similarity --lr 0.01 --iterations 1000 --min_object_size 50000
 ```
 
+To run without the segment based analysis, if images have black background (eg. using HistoQC) and training on the CPU:  
+```
+pathflow-mixmatch --im1 A.png --im2 B.png --fix_rotation False --output_dir output_registered_images/ --gpu_device -1 --transform_type similarity --lr 0.01 --iterations 1000 --min_object_size 50000 --no_segment_analysis True --black_background True
+```
+
 See https://airlab.readthedocs.io/ for further description of available transformations and loss functions.  
 
 Currently available loss functions:  
