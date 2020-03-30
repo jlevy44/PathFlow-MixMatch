@@ -1,4 +1,4 @@
-img_import fire
+import fire
 import numpy as np, cv2
 import cv2
 from skimage.morphology import watershed
