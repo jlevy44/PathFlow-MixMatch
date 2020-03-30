@@ -407,7 +407,7 @@ def register_images_(im1_fname='A.npy',
 		print("[{}/{}] - Writing registered sections to file.".format(idx+1,N))
 
 		cv2.imwrite(os.path.join(output_dir,os.path.basename(im1_fname).replace(file_ext,'_registered{}'.format(file_ext))),cv2.cvtColor(im1,cv2.COLOR_BGR2RGB))
-		cv2.imwrite(os.path.join(output_dir,os.path.basename(im1_fname).replace(file_ext,'_registered{}'.format(file_ext))),cv2.cvtColor(new_image,cv2.COLOR_BGR2RGB))
+		cv2.imwrite(os.path.join(output_dir,os.path.basename(im2_fname).replace(file_ext,'_registered{}'.format(file_ext))),cv2.cvtColor(new_image,cv2.COLOR_BGR2RGB))
 
 class Commands(object):
 	def __init__(self):
