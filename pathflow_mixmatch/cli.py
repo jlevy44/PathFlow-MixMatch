@@ -97,7 +97,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 	# device = th.device("cuda:0")
 
 	# load the image data and normalize to [0, 1]
-    # add mask to loss function
+	# add mask to loss function
 	fixed_image = al.utils.image.create_tensor_image_from_itk_image(sitk.GetImageFromArray(cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY)), dtype=th.float32, device=device)#al.read_image_as_tensor("./practice_reg/1.png", dtype=dtype, device=device)#th.tensor(img1,device='cuda',dtype=dtype)#
 	moving_image = al.utils.image.create_tensor_image_from_itk_image(sitk.GetImageFromArray(cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY)), dtype=th.float32, device=device)#al.read_image_as_tensor("./practice_reg/2.png", dtype=dtype, device=device)#th.tensor(img2,device='cuda',dtype=dtype)#
 
@@ -187,7 +187,8 @@ def get_loss(im1,im2,gpu_device):
 		im1 = cv2.copyMakeBorder(im1, 0, 0, 0, dw, cv2.BORDER_CONSTANT, value=[255,255,255])
 
 	_, _, _,loss=affine_register(np.uint8(im1), np.uint8(im2), 100, lr=0.01, transform_type='rigid', gpu_device=gpu_device)
-	th.cuda.empty_cache()
+	if gpu_device>=0:
+		th.cuda.empty_cache()
 	return loss
 
 def rotate_detector(im1,im2,gpu_device):
@@ -211,7 +212,8 @@ def correct_rotation(im1, im2, scaling_factor=4, gpu_device=0):
 	with suppress_stdout():
 		rotation_loss_dict=rotate_detector(im1_small,im2_small,gpu_device)
 
-	th.cuda.empty_cache()
+	if gpu_device>=0:
+		th.cuda.empty_cache()
 
 	rotations=np.array(list(rotation_loss_dict.items()))
 	angle=int(rotations[np.argmin(rotations[:,1]),0])
@@ -245,6 +247,20 @@ def rotate_image(mat, angle):
 	rotated_mat = cv2.warpAffine(mat, rotation_mat, (bound_w, bound_h), borderValue=(255,255,255))
 	return rotated_mat
 
+def match_image_size(img1,img2,black_background=False):
+	white=int(black_background==False)
+	fill_color=(np.array([255,255,255])*white).astype(int).tolist()
+	dh=int(np.abs((img1.shape[0]-img2.shape[0])))
+	if img1.shape[0]>img2.shape[0]:
+		img2 = cv2.copyMakeBorder(img2, dh//2+dh%2, dh//2, 0, 0, cv2.BORDER_CONSTANT, value=fill_color)
+	elif img1.shape[0]<img2.shape[0]:
+		img1 = cv2.copyMakeBorder(img1, dh//2+dh%2, dh//2, 0, 0, cv2.BORDER_CONSTANT, value=fill_color)
+	dw=int(np.abs((img1.shape[1]-img2.shape[1])))
+	if img1.shape[1]>img2.shape[1]:
+		img2 = cv2.copyMakeBorder(img2, 0, 0, dw//2+dw%2, dw//2, cv2.BORDER_CONSTANT, value=fill_color)
+	elif img1.shape[1]<img2.shape[1]:
+		img1 = cv2.copyMakeBorder(img1, 0, 0, dw//2+dw%2, dw//2, cv2.BORDER_CONSTANT, value=fill_color)
+	return img1, img2
 # add moments, first image should have 1+ corresponding segments / 2 sections
 # while first has fewer sections
 # add mask !!!
@@ -273,7 +289,9 @@ def register_images_(im1_fname='A.npy',
 						loss_fn='mse',
 						lr=0.01,
 						transform_type='rigid',
-						iterations=1000):
+						iterations=1000,
+						no_segment_analysis=False,
+						black_background=False):
 
 	print("Loading images.")
 
@@ -286,101 +304,110 @@ def register_images_(im1_fname='A.npy',
 		im1=cv2.imread(im1_fname)
 		im2=cv2.imread(im2_fname)
 
+	if not no_segment_analysis:
 
-	if max_rotation_vertical_px:
-		scaling_factor=((sum(im1.shape[:2])+sum(im2.shape[:2]))/4.)/float(max_rotation_vertical_px)
-		print("New scaling factor: {}".format(scaling_factor))
+		if max_rotation_vertical_px:
+			scaling_factor=((sum(im1.shape[:2])+sum(im2.shape[:2]))/4.)/float(max_rotation_vertical_px)
+			print("New scaling factor: {}".format(scaling_factor))
 
-	if fix_rotation:
-		print("Adjusting 90 degree rotations.")
+		if fix_rotation:
+			print("Adjusting 90 degree rotations.")
 
-		im2=correct_rotation(im1, im2, scaling_factor=scaling_factor, gpu_device=gpu_device)
+			im2=correct_rotation(im1, im2, scaling_factor=scaling_factor, gpu_device=gpu_device)
 
-	th.cuda.empty_cache()
+		if gpu_device>=0:
+			th.cuda.empty_cache()
 
-	print("Locating Sections.")
+		print("Locating Sections.")
 
-	mask,labels=label_objects(im1, connectivity=connectivity, min_object_size=min_object_size, apply_watershed=apply_watershed)
-	mask2,labels2=label_objects(im2, connectivity=connectivity, min_object_size=min_object_size, apply_watershed=apply_watershed)
+		mask,labels=label_objects(im1, connectivity=connectivity, min_object_size=min_object_size, apply_watershed=apply_watershed)
+		mask2,labels2=label_objects(im2, connectivity=connectivity, min_object_size=min_object_size, apply_watershed=apply_watershed)
 
-	print("Estimating section properties.")
+		print("Estimating section properties.")
 
-	props = pd.DataFrame(measure.regionprops_table(labels, cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY),properties=properties))
-	props2 = pd.DataFrame(measure.regionprops_table(labels2, cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY),properties=properties))
+		props = pd.DataFrame(measure.regionprops_table(labels, cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY),properties=properties))
+		props2 = pd.DataFrame(measure.regionprops_table(labels2, cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY),properties=properties))
 
-	bboxes=pd.DataFrame(measure.regionprops_table(labels,cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY),properties=['bbox']))
-	bboxes2=pd.DataFrame(measure.regionprops_table(labels2,cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY),properties=['bbox']))
+		bboxes=pd.DataFrame(measure.regionprops_table(labels,cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY),properties=['bbox']))
+		bboxes2=pd.DataFrame(measure.regionprops_table(labels2,cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY),properties=['bbox']))
 
-	print("Matching tissue sections.")
+		print("Matching tissue sections.")
 
-	sections=list(get_matched_tissue(props,props2))
+		sections=list(get_matched_tissue(props,props2))
 
-	N=len(sections)
+		N=len(sections)
 
-	if file_ext=='.npy':
+		if file_ext=='.npy':
 
-		del im1, im2
+			del im1, im2
 
-		im1=np.load(im1_fname,mmap_mode='r+')
-		im2=np.load(im2_fname,mmap_mode='r+')
+			im1=np.load(im1_fname,mmap_mode='r+')
+			im2=np.load(im2_fname,mmap_mode='r+')
 
-	print("Performing alignments on pairs of sections.")
+		print("Performing alignments on pairs of sections.")
 
-	for idx,(i,j) in enumerate(sections):
+		for idx,(i,j) in enumerate(sections):
 
-		img_out1=os.path.join(output_dir,os.path.basename(im1_fname)).replace(file_ext,'_{}.png'.format(idx))
-		img_out2=os.path.join(output_dir,os.path.basename(im2_fname)).replace(file_ext,'_{}.png'.format(idx))
+			img_out1=os.path.join(output_dir,os.path.basename(im1_fname)).replace(file_ext,'_{}.png'.format(idx))
+			img_out2=os.path.join(output_dir,os.path.basename(im2_fname)).replace(file_ext,'_{}.png'.format(idx))
 
-		if os.path.exists(img_out1)==False or os.path.exists(img_out1)==False or overwrite:
+			if os.path.exists(img_out1)==False or os.path.exists(img_out1)==False or overwrite:
 
-			try:
+				try:
 
-				print("[{}/{}] - Extracting and rotating sections {} and {}".format(idx+1,N,i,j))
-				angle=-props.loc[i,'orientation']*180./(np.pi)
-				img=im1[bboxes.iloc[i,0]:bboxes.iloc[i,2],bboxes.iloc[i,1]:bboxes.iloc[i,3]].copy()#.copy()
-				img[labels[bboxes.iloc[i,0]:bboxes.iloc[i,2],bboxes.iloc[i,1]:bboxes.iloc[i,3]]!=(i+1)]=255.
-				img1=rotate_image(img, angle)#np.uint8(rotate(img, -props.loc[i,'orientation']*180./(np.pi), resize=True, center=None, order=1, mode='constant', cval=1., clip=clip, preserve_range=False)*255.)
+					print("[{}/{}] - Extracting and rotating sections {} and {}".format(idx+1,N,i,j))
+					angle=-props.loc[i,'orientation']*180./(np.pi)
+					img=im1[bboxes.iloc[i,0]:bboxes.iloc[i,2],bboxes.iloc[i,1]:bboxes.iloc[i,3]].copy()#.copy()
+					img[labels[bboxes.iloc[i,0]:bboxes.iloc[i,2],bboxes.iloc[i,1]:bboxes.iloc[i,3]]!=(i+1)]=255.
+					img1=rotate_image(img, angle)#np.uint8(rotate(img, -props.loc[i,'orientation']*180./(np.pi), resize=True, center=None, order=1, mode='constant', cval=1., clip=clip, preserve_range=False)*255.)
 
-				angle=-props2.loc[j,'orientation']*180./(np.pi)
-				img=im2[bboxes2.iloc[j,0]:bboxes2.iloc[j,2],bboxes2.iloc[j,1]:bboxes2.iloc[j,3]].copy()#.copy()
-				img[labels2[bboxes2.iloc[j,0]:bboxes2.iloc[j,2],bboxes2.iloc[j,1]:bboxes2.iloc[j,3]]!=(j+1)]=255.
-				img2=rotate_image(img, angle)#np.uint8(rotate(img, -props2.loc[j,'orientation']*180./(np.pi), resize=True, center=None, order=1, mode='constant', cval=1., clip=clip, preserve_range=False)*255.)
+					angle=-props2.loc[j,'orientation']*180./(np.pi)
+					img=im2[bboxes2.iloc[j,0]:bboxes2.iloc[j,2],bboxes2.iloc[j,1]:bboxes2.iloc[j,3]].copy()#.copy()
+					img[labels2[bboxes2.iloc[j,0]:bboxes2.iloc[j,2],bboxes2.iloc[j,1]:bboxes2.iloc[j,3]]!=(j+1)]=255.
+					img2=rotate_image(img, angle)#np.uint8(rotate(img, -props2.loc[j,'orientation']*180./(np.pi), resize=True, center=None, order=1, mode='constant', cval=1., clip=clip, preserve_range=False)*255.)
 
-				print("[{}/{}] - Trimming sections to proper W & H".format(idx+1,N))
+					print("[{}/{}] - Trimming sections to proper W & H".format(idx+1,N))
 
-				c=int(img1.shape[1]/2.)
-				w=max(int(props.loc[i,'minor_axis_length']/2),int(props2.loc[j,'minor_axis_length']/2*mult_factor))
-				h=max(int(img1.shape[0]/2.),int(img2.shape[1]/2.))
-				img1=img1[:,c-w:c+w]
+					c=int(img1.shape[1]/2.)
+					w=max(int(props.loc[i,'minor_axis_length']/2),int(props2.loc[j,'minor_axis_length']/2*mult_factor))
+					h=max(int(img1.shape[0]/2.),int(img2.shape[1]/2.))
+					img1=img1[:,c-w:c+w]
 
-				c=int(img2.shape[1]/2.)
-				img2=img2[:,c-w:c+w]
+					c=int(img2.shape[1]/2.)
+					img2=img2[:,c-w:c+w]
 
-				dh=int(np.abs((img1.shape[0]-img2.shape[0])))
-				if img1.shape[0]>img2.shape[0]:
-					img2 = cv2.copyMakeBorder(img2, dh//2+dh%2, dh//2, 0, 0, cv2.BORDER_CONSTANT, value=[255,255,255])
-				elif img1.shape[0]<img2.shape[0]:
-					img1 = cv2.copyMakeBorder(img1, dh//2+dh%2, dh//2, 0, 0, cv2.BORDER_CONSTANT, value=[255,255,255])
-				dw=int(np.abs((img1.shape[1]-img2.shape[1])))
-				if img1.shape[1]>img2.shape[1]:
-					img2 = cv2.copyMakeBorder(img2, 0, 0, dw//2+dw%2, dw//2, cv2.BORDER_CONSTANT, value=[255,255,255])
-				elif img1.shape[1]<img2.shape[1]:
-					img1 = cv2.copyMakeBorder(img1, 0, 0, dw//2+dw%2, dw//2, cv2.BORDER_CONSTANT, value=[255,255,255])
+					img1,img2=match_image_size(img1,img2,black_background=black_background)
 
-				print("[{}/{}] - Begin alignment of sections.".format(idx+1,N))
+					print("[{}/{}] - Begin alignment of sections.".format(idx+1,N))
 
-				with suppress_stdout():
-					new_img=displace_image(img2,affine_register(img1, img2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations)[0],gpu_device=gpu_device) # new tri, output he as well
+					with suppress_stdout():
+						new_img=displace_image(img2,affine_register(img1, img2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations)[0],gpu_device=gpu_device) # new tri, output he as well
 
-				th.cuda.empty_cache()
+					if gpu_device>=0:
+						th.cuda.empty_cache()
 
-				print("[{}/{}] - Writing registered sections to file.".format(idx+1,N))
+					print("[{}/{}] - Writing registered sections to file.".format(idx+1,N))
 
-				cv2.imwrite(img_out1,cv2.cvtColor(img1,cv2.COLOR_BGR2RGB))
-				cv2.imwrite(img_out2,cv2.cvtColor(new_img,cv2.COLOR_BGR2RGB))
+					cv2.imwrite(img_out1,cv2.cvtColor(img1,cv2.COLOR_BGR2RGB))
+					cv2.imwrite(img_out2,cv2.cvtColor(new_img,cv2.COLOR_BGR2RGB))
 
-			except Exception as e:
-				print(str(e))
+				except Exception as e:
+					print(str(e))
+
+	else:
+
+		im1,im2=match_image_size(im1,im2,black_background=black_background)
+
+		with suppress_stdout():
+			new_img=displace_image(im2,affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations)[0],gpu_device=gpu_device) # new tri, output he as well
+
+		if gpu_device>=0:
+			th.cuda.empty_cache()
+
+		print("[{}/{}] - Writing registered sections to file.".format(idx+1,N))
+
+		cv2.imwrite(os.path.join(output_dir,os.path.basename(im1_fname).replace(file_ext,'_registered{}'.format(file_ext))),cv2.cvtColor(im1,cv2.COLOR_BGR2RGB))
+		cv2.imwrite(os.path.join(output_dir,os.path.basename(im1_fname).replace(file_ext,'_registered{}'.format(file_ext))),cv2.cvtColor(new_image,cv2.COLOR_BGR2RGB))
 
 class Commands(object):
 	def __init__(self):
@@ -411,7 +438,9 @@ class Commands(object):
 							loss_fn='mse',
 							lr=0.01,
 							transform_type='rigid',
-							iterations=1000):
+							iterations=1000,
+							no_segment_analysis=False,
+							black_background=False):
 		register_images_(im1_fname=im1,
 							im2_fname=im2,
 							connectivity=connectivity,
@@ -429,7 +458,9 @@ class Commands(object):
 							loss_fn=loss_fn,
 							lr=lr,
 							transform_type=transform_type,
-							iterations=iterations)
+							iterations=iterations,
+							no_segment_analysis=no_segment_analysis,
+							black_background=black_background)
 
 def main():
 	fire.Fire(Commands)
