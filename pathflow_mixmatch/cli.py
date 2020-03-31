@@ -84,8 +84,9 @@ def displace_image(img, displacement, gpu_device):
 # limitations under the License.
 
 
-def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similarity', gpu_device=0, opt_cm=True, loss_fn='mse'):
-	assert transform_type in ['similarity', 'affine', 'rigid']
+def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similarity', gpu_device=0, opt_cm=True, sigma=[[11,11],[11,11],[3,3]], order=2, pyramid=[[4,4],[2,2]], loss_fn='mse', use_mask=False):
+	assert use_mask==False, "Masking not implemented"
+	assert transform_type in ['similarity', 'affine', 'rigid', 'non_parametric','bspline','wendland']
 	start = time.time()
 
 	# set the used data type
@@ -114,35 +115,72 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 
 	transforms=dict(similarity=al.transformation.pairwise.SimilarityTransformation,
 				   affine=al.transformation.pairwise.AffineTransformation,
-				   rigid=al.transformation.pairwise.RigidTransformation)
+				   rigid=al.transformation.pairwise.RigidTransformation,
+				   non_parametric=al.transformation.pairwise.NonParametricTransformation,
+				   wendland=al.transformation.pairwise.WendlandKernelTransformation,
+				   bspline=al.transformation.pairwise.BsplineTransformation)
+	constant_flow=None
 
-	# choose the affine transformation model
-	transformation = transforms[transform_type](moving_image, opt_cm=opt_cm)
-	# initialize the translation with the center of mass of the fixed image
-	transformation.init_translation(fixed_image)
+	if transform_type in ['similarity', 'affine', 'rigid']:
+		transform_opts=dict(opt_cm=opt_cm)
+		transform_args=[moving_image]
+		sigma,fixed_image_pyramid,moving_image_pyramid=[[]],[[]],[[]]
+	else:
+		transform_opts=dict(diffeomorphic=opt_cm)
+		transform_args=[moving_image.size]
+		if transform_type in ['bspline','wendland']:
+			transform_opts['sigma']=sigma
+			fixed_image_pyramid = al.create_image_pyramid(fixed_image, pyramid)
+			moving_image_pyramid = al.create_image_pyramid(moving_image, pyramid)
+		else:
+			sigma,fixed_image_pyramid,moving_image_pyramid=[[]],[[fixed_image]],[[moving_image]]
+		if transform_type=='bspline':
+			transform_opts['order']=order
+		if transfrm_type=='wendland':
+			transform_opts['cp_scale']=order
 
-	registration.set_transformation(transformation)
+	for level, (mov_im_level, fix_im_level) in enumerate(zip(moving_image_pyramid, fixed_image_pyramid)):
 
-	loss_fns=dict(mse=al.loss.pairwise.MSE,
-				ncc=al.loss.pairwise.NCC,
-				lcc=al.loss.pairwise.LCC,
-				mi=al.loss.pairwise.MI,
-				mgf=al.loss.pairwise.NGF,
-				ssim=al.loss.pairwise.SSIM)
+		# choose the affine transformation model
+		if transform_type in ['non_parametric','bspline','wendland']:
+			transform_args[0]=mov_im_level.size
 
-	# choose the Mean Squared Error as image loss
-	image_loss = loss_fns[loss_fn](fixed_image, moving_image)
+		transformation = transforms[transform_type](*transform_args,**transform_opts, device=('cuda:{}'.format(gpu_device) if gpu_device>=0 else 'cpu'))
 
-	registration.set_image_loss([image_loss])
+		if level > 0:
+			constant_flow = al.transformation.utils.upsample_displacement(constant_flow,
+																		  mov_im_level.size,
+																		  interpolation="linear")
+			transformation.set_constant_flow(constant_flow)
 
-	# choose the Adam optimizer to minimize the objective
-	optimizer = th.optim.Adam(transformation.parameters(), lr=lr, amsgrad=True)
+		if transform_type in ['similarity', 'affine', 'rigid']:
+			# initialize the translation with the center of mass of the fixed image
+			transformation.init_translation(fixed_image)
 
-	registration.set_optimizer(optimizer)
-	registration.set_number_of_iterations(iterations)
+		registration.set_transformation(transformation)
 
-	# start the registration
-	registration.start()
+		loss_fns=dict(mse=al.loss.pairwise.MSE,
+					ncc=al.loss.pairwise.NCC,
+					lcc=al.loss.pairwise.LCC,
+					mi=al.loss.pairwise.MI,
+					mgf=al.loss.pairwise.NGF,
+					ssim=al.loss.pairwise.SSIM)
+
+		# choose the Mean Squared Error as image loss
+		image_loss = loss_fns[loss_fn](fixed_image, moving_image)
+
+		registration.set_image_loss([image_loss])
+
+		# choose the Adam optimizer to minimize the objective
+		optimizer = th.optim.Adam(transformation.parameters(), lr=lr, amsgrad=True)
+
+		registration.set_optimizer(optimizer)
+		registration.set_number_of_iterations(iterations)
+
+		# start the registration
+		registration.start()
+
+		constant_flow = transformation.get_flow()
 
 	# set the intensities back to the original for the visualisation
 	fixed_image.image = 1 - fixed_image.image
@@ -293,7 +331,11 @@ def register_images_(im1_fname='A.npy',
 						iterations=1000,
 						no_segment_analysis=False,
 						black_background=False,
-						verbose=False):
+						verbose=False,
+						opt_cm=True,
+						sigma=[[11,11],[11,11],[3,3]],
+						order=2,
+						pyramid=[[4,4],[2,2]]):
 
 	print("Loading images.")
 
@@ -383,7 +425,7 @@ def register_images_(im1_fname='A.npy',
 					print("[{}/{}] - Begin alignment of sections.".format(idx+1,N))
 
 					with (suppress_stdout() if not verbose else contextlib.suppress()):
-						new_img=displace_image(img2,affine_register(img1, img2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations)[0],gpu_device=gpu_device) # new tri, output he as well
+						new_img=displace_image(img2,affine_register(img1, img2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid)[0],gpu_device=gpu_device) # new tri, output he as well
 
 					if gpu_device>=0:
 						th.cuda.empty_cache()
@@ -403,7 +445,7 @@ def register_images_(im1_fname='A.npy',
 		print("Performing regitration.")
 
 		with (suppress_stdout() if not verbose else contextlib.suppress()):
-			new_img=displace_image(im2,affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations)[0],gpu_device=gpu_device) # new tri, output he as well
+			new_img=displace_image(im2,affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid)[0],gpu_device=gpu_device) # new tri, output he as well
 
 		if gpu_device>=0:
 			th.cuda.empty_cache()
@@ -445,7 +487,11 @@ class Commands(object):
 							iterations=1000,
 							no_segment_analysis=False,
 							black_background=False,
-							verbose=False):
+							verbose=False,
+							opt_cm=True,
+							sigma=[[11,11],[11,11],[3,3]],
+							order=2,
+							pyramid=[[4,4],[2,2]]):
 		register_images_(im1_fname=im1,
 							im2_fname=im2,
 							connectivity=connectivity,
@@ -466,7 +512,11 @@ class Commands(object):
 							iterations=iterations,
 							no_segment_analysis=no_segment_analysis,
 							black_background=black_background,
-							verbose=verbose)
+							verbose=verbose,
+							opt_cm=opt_cm,
+							sigma=sigma,
+							order=order,
+							pyramid=pyramid)
 
 def main():
 	fire.Fire(Commands)
