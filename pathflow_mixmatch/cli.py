@@ -20,6 +20,7 @@ import time
 import matplotlib.pyplot as plt
 import torch as th
 import warnings
+import contextlib
 warnings.filterwarnings("ignore")
 #sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import airlab as al
@@ -291,7 +292,8 @@ def register_images_(im1_fname='A.npy',
 						transform_type='rigid',
 						iterations=1000,
 						no_segment_analysis=False,
-						black_background=False):
+						black_background=False,
+						verbose=False):
 
 	print("Loading images.")
 
@@ -380,7 +382,7 @@ def register_images_(im1_fname='A.npy',
 
 					print("[{}/{}] - Begin alignment of sections.".format(idx+1,N))
 
-					with suppress_stdout():
+					with (suppress_stdout() if not verbose else contextlib.suppress()):
 						new_img=displace_image(img2,affine_register(img1, img2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations)[0],gpu_device=gpu_device) # new tri, output he as well
 
 					if gpu_device>=0:
@@ -398,13 +400,15 @@ def register_images_(im1_fname='A.npy',
 
 		im1,im2=match_image_size(im1,im2,black_background=black_background)
 
-		with suppress_stdout():
+		print("Performing regitration.")
+
+		with (suppress_stdout() if not verbose else contextlib.suppress()):
 			new_img=displace_image(im2,affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations)[0],gpu_device=gpu_device) # new tri, output he as well
 
 		if gpu_device>=0:
 			th.cuda.empty_cache()
 
-		print("[{}/{}] - Writing registered sections to file.".format(idx+1,N))
+		print("Writing registered section to file.")
 
 		cv2.imwrite(os.path.join(output_dir,os.path.basename(im1_fname).replace(file_ext,'_registered{}'.format(file_ext))),cv2.cvtColor(im1,cv2.COLOR_BGR2RGB))
 		cv2.imwrite(os.path.join(output_dir,os.path.basename(im2_fname).replace(file_ext,'_registered{}'.format(file_ext))),cv2.cvtColor(new_image,cv2.COLOR_BGR2RGB))
@@ -440,7 +444,8 @@ class Commands(object):
 							transform_type='rigid',
 							iterations=1000,
 							no_segment_analysis=False,
-							black_background=False):
+							black_background=False,
+							verbose=False):
 		register_images_(im1_fname=im1,
 							im2_fname=im2,
 							connectivity=connectivity,
@@ -460,7 +465,8 @@ class Commands(object):
 							transform_type=transform_type,
 							iterations=iterations,
 							no_segment_analysis=no_segment_analysis,
-							black_background=black_background)
+							black_background=black_background,
+							verbose=verbose)
 
 def main():
 	fire.Fire(Commands)
