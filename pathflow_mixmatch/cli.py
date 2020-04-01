@@ -126,11 +126,10 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		transform_args=[moving_image]
 		sigma,fixed_image_pyramid,moving_image_pyramid=[[]],[[]],[[]]
 	else:
-		transform_opts=dict(diffeomorphic=opt_cm)
+		transform_opts=dict(diffeomorphic=opt_cm, device=('cuda:{}'.format(gpu_device) if gpu_device>=0 else 'cpu'))
 		transform_args=[moving_image.size]
 		if transform_type in ['bspline','wendland']:
 			transform_opts['sigma']=sigma
-			transform_opts['device']=('cuda:{}'.format(gpu_device) if gpu_device>=0 else 'cpu')
 			fixed_image_pyramid = al.create_image_pyramid(fixed_image, pyramid)
 			moving_image_pyramid = al.create_image_pyramid(moving_image, pyramid)
 		else:
