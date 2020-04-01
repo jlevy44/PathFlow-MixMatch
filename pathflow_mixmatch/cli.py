@@ -84,7 +84,7 @@ def displace_image(img, displacement, gpu_device):
 # limitations under the License.
 
 
-def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similarity', gpu_device=0, opt_cm=True, sigma=[[11,11],[11,11],[3,3]], order=2, pyramid=[[4,4],[2,2]], loss_fn='mse', use_mask=False):
+def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similarity', gpu_device=0, opt_cm=True, sigma=[[11,11],[11,11],[3,3]], order=2, pyramid=[[4,4],[2,2]], loss_fn='mse', use_mask=False, interpolation='bicubic'):
 	assert use_mask==False, "Masking not implemented"
 	assert transform_type in ['similarity', 'affine', 'rigid', 'non_parametric','bspline','wendland']
 	start = time.time()
@@ -136,7 +136,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 			sigma,fixed_image_pyramid,moving_image_pyramid=[[]],[[fixed_image]],[[moving_image]]
 		if transform_type=='bspline':
 			transform_opts['order']=order
-		if transfrm_type=='wendland':
+		if transform_type=='wendland':
 			transform_opts['cp_scale']=order
 
 	for level, (mov_im_level, fix_im_level) in enumerate(zip(moving_image_pyramid, fixed_image_pyramid)):
@@ -147,10 +147,10 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 
 		transformation = transforms[transform_type](*transform_args,**transform_opts)
 
-		if level > 0:
+		if level > 0 and transform_type=='bspline':
 			constant_flow = al.transformation.utils.upsample_displacement(constant_flow,
 																		  mov_im_level.size,
-																		  interpolation="linear")
+																		  interpolation=interpolation)
 			transformation.set_constant_flow(constant_flow)
 
 		if transform_type in ['similarity', 'affine', 'rigid']:
@@ -180,7 +180,8 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		# start the registration
 		registration.start()
 
-		constant_flow = transformation.get_flow()
+		if transform_type == 'bspline':
+			constant_flow = transformation.get_flow()
 
 	# set the intensities back to the original for the visualisation
 	fixed_image.image = 1 - fixed_image.image
@@ -335,7 +336,8 @@ def register_images_(im1_fname='A.npy',
 						opt_cm=True,
 						sigma=[[11,11],[11,11],[3,3]],
 						order=2,
-						pyramid=[[4,4],[2,2]]):
+						pyramid=[[4,4],[2,2]],
+						interpolation='bicubic'):
 
 	print("Loading images.")
 
@@ -425,7 +427,7 @@ def register_images_(im1_fname='A.npy',
 					print("[{}/{}] - Begin alignment of sections.".format(idx+1,N))
 
 					with (suppress_stdout() if not verbose else contextlib.suppress()):
-						new_img=displace_image(img2,affine_register(img1, img2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid)[0],gpu_device=gpu_device) # new tri, output he as well
+						new_img=displace_image(img2,affine_register(img1, img2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation)[0],gpu_device=gpu_device) # new tri, output he as well
 
 					if gpu_device>=0:
 						th.cuda.empty_cache()
@@ -445,7 +447,7 @@ def register_images_(im1_fname='A.npy',
 		print("Performing regitration.")
 
 		with (suppress_stdout() if not verbose else contextlib.suppress()):
-			new_img=displace_image(im2,affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid)[0],gpu_device=gpu_device) # new tri, output he as well
+			new_img=displace_image(im2,affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation)[0],gpu_device=gpu_device) # new tri, output he as well
 
 		if gpu_device>=0:
 			th.cuda.empty_cache()
@@ -491,7 +493,8 @@ class Commands(object):
 							opt_cm=True,
 							sigma=[[11,11],[11,11],[3,3]],
 							order=2,
-							pyramid=[[4,4],[2,2]]):
+							pyramid=[[4,4],[2,2]],
+							interpolation='bicubic'):
 		register_images_(im1_fname=im1,
 							im2_fname=im2,
 							connectivity=connectivity,
@@ -516,7 +519,8 @@ class Commands(object):
 							opt_cm=opt_cm,
 							sigma=sigma,
 							order=order,
-							pyramid=pyramid)
+							pyramid=pyramid,
+							interpolation=interpolation)
 
 def main():
 	fire.Fire(Commands)
