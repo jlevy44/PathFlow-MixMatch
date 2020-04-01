@@ -130,6 +130,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		transform_args=[moving_image.size]
 		if transform_type in ['bspline','wendland']:
 			transform_opts['sigma']=sigma
+			transform_opts['device']=('cuda:{}'.format(gpu_device) if gpu_device>=0 else 'cpu')
 			fixed_image_pyramid = al.create_image_pyramid(fixed_image, pyramid)
 			moving_image_pyramid = al.create_image_pyramid(moving_image, pyramid)
 		else:
@@ -145,7 +146,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		if transform_type in ['non_parametric','bspline','wendland']:
 			transform_args[0]=mov_im_level.size
 
-		transformation = transforms[transform_type](*transform_args,**transform_opts, device=('cuda:{}'.format(gpu_device) if gpu_device>=0 else 'cpu'))
+		transformation = transforms[transform_type](*transform_args,**transform_opts)
 
 		if level > 0:
 			constant_flow = al.transformation.utils.upsample_displacement(constant_flow,
