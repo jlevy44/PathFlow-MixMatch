@@ -12,7 +12,8 @@ PACKAGES=['numpy',
             'matplotlib',
             'torch',
             'airlab',
-            'fire']
+            'fire',
+            'nibabel']
 
 with open('README.md','r', encoding='utf-8') as f:
       long_description = f.read()

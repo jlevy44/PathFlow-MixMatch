@@ -461,6 +461,24 @@ class Commands(object):
 	def __init__(self):
 		pass
 
+	def apply_drop2_transform(self,
+								source_image='A.png',
+								ref_image='B.png',
+								dx='warp_field_x.nii.gz',
+								dy='warp_field_y.nii.gz',
+								gpu_device=-1):
+		import nibabel
+		assert source_image.split('.')[-1]=='png' and target_image.split('.')[-1]=='png'
+		source_img=cv2.imread(source_image)
+		ref_img=cv2.imread(ref_image)
+		source_img=cv2.resize(source_img,ref_img.shape[:2])
+		dx,dy=nibabel.load(dx).get_fdata(),nibabel.load(dy).get_fdata()
+		displacement=th.tensor(np.concatenate([dx,dy],-1)).unsqueeze(0).permute(0,2,1,3)
+		if gpu_device >= 0:
+			displacement=displacement.cuda()
+		new_img=displace_image(img, displacement, gpu_device)
+		cv2.imwrite(source_img.replace('.png','_warped.png'),cv2.cvtColor(new_img,cv2.COLOR_BGR2RGB))
+
 	def register_images(self,
 							im1='A.npy',
 							im2='B.npy',
