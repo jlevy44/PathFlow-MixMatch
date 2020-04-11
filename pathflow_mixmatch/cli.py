@@ -444,7 +444,7 @@ def register_images_(im1_fname='A.npy',
 
 		im1,im2=match_image_size(im1,im2,black_background=black_background)
 
-		print("Performing regitration.")
+		print("Performing registration.")
 
 		with (suppress_stdout() if not verbose else contextlib.suppress()):
 			new_img=displace_image(im2,affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation)[0],gpu_device=gpu_device) # new tri, output he as well
