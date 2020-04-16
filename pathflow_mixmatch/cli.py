@@ -469,6 +469,8 @@ class Commands(object):
 								gpu_device=-1):
 		import nibabel
 		assert source_image.split('.')[-1]=='png' and ref_image.split('.')[-1]=='png'
+		assert os.path.exists(source_image)
+		assert os.path.exists(ref_image)
 		source_img=cv2.imread(source_image)
 		ref_img=cv2.imread(ref_image)
 		source_img=cv2.resize(source_img,ref_img.shape[:2])
