@@ -473,7 +473,9 @@ class Commands(object):
 		ref_img=cv2.imread(ref_image)
 		source_img=cv2.resize(source_img,ref_img.shape[:2])
 		dx,dy=nibabel.load(dx).get_fdata(),nibabel.load(dy).get_fdata()
-		displacement=th.tensor(np.concatenate([dx,dy],-1)).unsqueeze(0).permute(0,2,1,3)
+		displacement=th.tensor(np.concatenate([dy,dx],-1)).unsqueeze(0).permute(0,2,1,3)
+		for dim in range(displacement.shape[-1]):
+			displacement[...,dim]=2.0*displacement[...,dim]/float(displacement.shape[-dim - 2] - 1)
 		if gpu_device >= 0:
 			displacement=displacement.cuda()
 		new_img=displace_image(img, displacement, gpu_device)
