@@ -474,9 +474,9 @@ class Commands(object):
 		assert os.path.exists(ref_image)
 		source_img=cv2.cvtColor(cv2.imread(source_image),cv2.COLOR_BGR2RGB)
 		ref_img=cv2.imread(ref_image)
-		source_img=cv2.resize(source_img,ref_img.shape[:2])
+		source_img=cv2.resize(source_img,ref_img.shape[::-1][:2])
 		dx,dy=nibabel.load(dx).get_fdata(),nibabel.load(dy).get_fdata()
-		displacement=th.tensor(np.concatenate([dy,dx],-1)).unsqueeze(0).float()#.permute(0,2,1,3)
+		displacement=th.tensor(np.concatenate([dy,dx],-1)).unsqueeze(0).float().permute(0,2,1,3)
 		for dim in range(displacement.shape[-1]):
 			displacement[...,dim]=2.0*displacement[...,dim]/float(displacement.shape[-dim - 2] - 1)
 		if gpu_device >= 0:
