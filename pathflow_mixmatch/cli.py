@@ -468,7 +468,7 @@ class Commands(object):
 								dy='warp_field_y.nii.gz',
 								gpu_device=-1):
 		import nibabel
-		assert source_image.split('.')[-1]=='png' and target_image.split('.')[-1]=='png'
+		assert source_image.split('.')[-1]=='png' and ref_image.split('.')[-1]=='png'
 		source_img=cv2.imread(source_image)
 		ref_img=cv2.imread(ref_image)
 		source_img=cv2.resize(source_img,ref_img.shape[:2])
