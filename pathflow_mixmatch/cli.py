@@ -478,7 +478,7 @@ class Commands(object):
 		dx,dy=nibabel.load(dx).get_fdata(),nibabel.load(dy).get_fdata()
 		displacement=th.tensor(np.concatenate([dx,dy],-1)).unsqueeze(0).float().permute(0,2,1,3)
 		for dim in range(displacement.shape[-1]):
-			displacement[...,dim]=2.0*displacement[...,dim]/float(displacement.shape[-dim - 2] - 1)
+			displacement[...,dim]=2.0*displacement[::-1,::-1,dim]/float(displacement.shape[-dim - 2] - 1)
 		if gpu_device >= 0:
 			displacement=displacement.cuda()
 		new_img=displace_image(source_img, displacement, gpu_device)
