@@ -466,12 +466,13 @@ class Commands(object):
 								ref_image='B.png',
 								dx='warp_field_x.nii.gz',
 								dy='warp_field_y.nii.gz',
-								gpu_device=-1):
+								gpu_device=-1,
+								output_file=''):
 		import nibabel
 		assert source_image.split('.')[-1]=='png' and ref_image.split('.')[-1]=='png'
 		assert os.path.exists(source_image)
 		assert os.path.exists(ref_image)
-		source_img=cv2.imread(source_image)
+		source_img=cv2.cvtColor(cv2.imread(source_image),cv2.COLOR_BGR2RGB)
 		ref_img=cv2.imread(ref_image)
 		source_img=cv2.resize(source_img,ref_img.shape[:2])
 		dx,dy=nibabel.load(dx).get_fdata(),nibabel.load(dy).get_fdata()
@@ -480,8 +481,8 @@ class Commands(object):
 			displacement[...,dim]=2.0*displacement[...,dim]/float(displacement.shape[-dim - 2] - 1)
 		if gpu_device >= 0:
 			displacement=displacement.cuda()
-		new_img=displace_image(img, displacement, gpu_device)
-		cv2.imwrite(source_img.replace('.png','_warped.png'),cv2.cvtColor(new_img,cv2.COLOR_BGR2RGB))
+		new_img=displace_image(source_img, displacement, gpu_device)
+		cv2.imwrite(source_image.replace('.png','_warped.png') if not output_file else output_file,new_img)
 
 	def register_images(self,
 							im1='A.npy',
