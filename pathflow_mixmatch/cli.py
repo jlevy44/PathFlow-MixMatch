@@ -467,16 +467,18 @@ class Commands(object):
 								dx='warp_field_x.nii.gz',
 								dy='warp_field_y.nii.gz',
 								gpu_device=-1,
-								output_file=''):
+								output_file='',
+								flip_xy=False,
+								flip_pattern=[-1,-1,1,1]):# list of -1s and 1s
 		import nibabel
 		assert source_image.split('.')[-1]=='png' and ref_image.split('.')[-1]=='png'
 		assert os.path.exists(source_image)
 		assert os.path.exists(ref_image)
-		source_img=cv2.cvtColor(cv2.imread(source_image),cv2.COLOR_BGR2RGB)
+		source_img=cv2.imread(source_image)#cv2.cvtColor(,cv2.COLOR_BGR2RGB)
 		ref_img=cv2.imread(ref_image)
 		source_img=cv2.resize(source_img,ref_img.shape[-2::-1])
 		dx,dy=nibabel.load(dx).get_fdata(),nibabel.load(dy).get_fdata()
-		displacement=th.tensor(np.concatenate([dy,dx],-1)[::-1,::-1,...].copy()).unsqueeze(0).float().permute(0,2,1,3)
+		displacement=th.tensor(np.concatenate([dx[::flip_pattern[0],::flip_pattern[1]],dy[::flip_pattern[2],::flip_pattern[3]]][::(-1 if flip_xy else 1)],-1)[::1,::1,...].copy()).unsqueeze(0).float().permute(0,2,1,3)
 		for dim in range(displacement.shape[-1]):
 			displacement[...,dim]=2.0*displacement[...,dim]/float(displacement.shape[-dim - 2] - 1)
 		if gpu_device >= 0:
