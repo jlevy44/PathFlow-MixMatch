@@ -61,11 +61,11 @@ def get_matched_tissue(props,props2):
 	x=PCA(n_components=4,random_state=42).fit_transform(pd.concat((props,props2)))#n_components=2 StandardScaler().fit_transform()
 	return enumerate(pd.DataFrame(sklearn.metrics.pairwise.pairwise_distances(x[:props.shape[0]],x[props.shape[0]:],'euclidean')).values.argmin(1))#pd.DataFrame(sklearn.metrics.pairwise.cosine_similarity(pd.DataFrame(x).T)).iloc[:props.shape[0],props.shape[0]:]#pd.DataFrame(x).T.corr()>0.95
 
-def displace_image(img, displacement, gpu_device):
+def displace_image(img, displacement, gpu_device, dtype=th.float32):
 	channels=[]
 	for i in range(3):
 		im=sitk.GetImageFromArray(img[...,i])
-		im=al.utils.image.create_tensor_image_from_itk_image(im, dtype=th.float32, device=('cuda:{}'.format(gpu_device) if gpu_device>=0 else 'cpu'))
+		im=al.utils.image.create_tensor_image_from_itk_image(im, dtype=dtype, device=('cuda:{}'.format(gpu_device) if gpu_device>=0 else 'cpu'))
 		channels.append(al.transformation.utils.warp_image(im, displacement).numpy())
 	return np.uint8(np.stack(channels).transpose((1,2,0)))
 
@@ -476,7 +476,7 @@ class Commands(object):
 		ref_img=cv2.imread(ref_image)
 		source_img=cv2.resize(source_img,ref_img.shape[:2])
 		dx,dy=nibabel.load(dx).get_fdata(),nibabel.load(dy).get_fdata()
-		displacement=th.tensor(np.concatenate([dy,dx],-1)).unsqueeze(0)#.permute(0,2,1,3)
+		displacement=th.tensor(np.concatenate([dy,dx],-1)).unsqueeze(0).float()#.permute(0,2,1,3)
 		for dim in range(displacement.shape[-1]):
 			displacement[...,dim]=2.0*displacement[...,dim]/float(displacement.shape[-dim - 2] - 1)
 		if gpu_device >= 0:
