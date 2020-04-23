@@ -467,13 +467,13 @@ class Commands(object):
 								dx='warp_field_x.nii.gz',
 								dy='warp_field_y.nii.gz',
 								gpu_device=-1,
-								output_file='',
-								flip_xy=False,
-								flip_pattern=[-1,-1,1,1]):# list of -1s and 1s
+								output_file=''):# list of -1s and 1s
 		import nibabel
 		assert source_image.split('.')[-1]=='png' and ref_image.split('.')[-1]=='png'
 		assert os.path.exists(source_image)
 		assert os.path.exists(ref_image)
+		flip_pattern=[1,1,1,1]
+		flip_xy=False
 		source_img=cv2.imread(source_image)#cv2.cvtColor(,cv2.COLOR_BGR2RGB)
 		ref_img=cv2.imread(ref_image)
 		source_img=cv2.resize(source_img,ref_img.shape[-2::-1])
