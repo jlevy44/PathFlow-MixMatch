@@ -434,6 +434,7 @@ def register_images_(im1_fname='A.npy',
 
 					print("[{}/{}] - Writing registered sections to file.".format(idx+1,N))
 
+					os.makedirs(output_dir, exist_ok=True)
 					cv2.imwrite(img_out1,cv2.cvtColor(img1,cv2.COLOR_BGR2RGB))
 					cv2.imwrite(img_out2,cv2.cvtColor(new_img,cv2.COLOR_BGR2RGB))
 
@@ -454,6 +455,7 @@ def register_images_(im1_fname='A.npy',
 
 		print("Writing registered section to file.")
 
+		os.makedirs(output_dir, exist_ok=True)
 		cv2.imwrite(os.path.join(output_dir,os.path.basename(im1_fname).replace(file_ext,'_registered{}'.format(file_ext))),cv2.cvtColor(im1,cv2.COLOR_BGR2RGB))
 		cv2.imwrite(os.path.join(output_dir,os.path.basename(im2_fname).replace(file_ext,'_registered{}'.format(file_ext))),cv2.cvtColor(new_img,cv2.COLOR_BGR2RGB))
 
