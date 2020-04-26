@@ -145,9 +145,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		if transform_type == 'non_parametric':
 			transform_args[0]=mov_im_level[0].size
 		elif transform_type in ['bspline','wendland']:
-			transform_args[0]=mov_im_level.size
-			# transform_args[0]=tuple(mov_im_level.size)
-			# transform_opts['sigma'] = (11, 11, 3)
+			transform_opts['sigma'] = (11, 11)
 
 		transformation = transforms[transform_type](*transform_args,**transform_opts)
 
@@ -200,9 +198,9 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 	print("=================================================================")
 
 	print("Registration done in:", end - start, "s")
-	if transform_type != 'non_parametric':
+	if transform_type in ['similarity', 'affine', 'rigid']:
 		print("Result parameters:")
-		transformation.print()  # only works with rigid?
+		transformation.print()
 
 	# plot the results
 	plt.subplot(131)
@@ -217,9 +215,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 	plt.imshow(warped_image.numpy(), cmap='gray')
 	plt.title('Warped Moving Image')
 
-	if transform_type == 'similarity' or transform_type == 'affine' or transform_type == 'rigid':
-		# TODO: check if transformation has parent class
-		# airlab.transformation.pairwise.RigidTransformation
+	if transform_type in ['similarity', 'affine', 'rigid']:
 		transformation_param = transformation._phi_z
 	elif transform_type == 'non_parametric':
 		transformation_param = transformation.trans_parameters
