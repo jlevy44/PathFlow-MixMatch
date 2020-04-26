@@ -393,14 +393,9 @@ def register_images_(im1_fname='A.npy',
 		print("Performing alignments on pairs of sections.")
 
 		for idx,(i,j) in enumerate(sections):
-
-			img_out1=os.path.join(output_dir,os.path.basename(im1_fname)).replace(file_ext,'_{}.png'.format(idx))
-			img_out2=os.path.join(output_dir,os.path.basename(im2_fname)).replace(file_ext,'_{}.png'.format(idx))
-
 			if os.path.exists(img_out1)==False or os.path.exists(img_out1)==False or overwrite:
 
 				try:
-
 					print("[{}/{}] - Extracting and rotating sections {} and {}".format(idx+1,N,i,j))
 					angle=-props.loc[i,'orientation']*180./(np.pi)
 					img=im1[bboxes.iloc[i,0]:bboxes.iloc[i,2],bboxes.iloc[i,1]:bboxes.iloc[i,3]].copy()#.copy()
@@ -434,7 +429,19 @@ def register_images_(im1_fname='A.npy',
 
 					print("[{}/{}] - Writing registered sections to file.".format(idx+1,N))
 
+					# TODO: don't rerun splitext, see variable file_ext
 					os.makedirs(output_dir, exist_ok=True)
+					# img_splitext1 and img_splitext2 are pairs, (root, ext)
+					img_splitext1 = os.path.splitext(os.path.basename(im1_fname))
+					img_out1 = os.path.join(
+						output_dir,
+						f"{img_splitext1[0]}_{idx}{img_splitext1[1]}"
+					)
+					img_splitext2 = os.path.splitext(os.path.basename(im2_fname))
+					img_out2 = os.path.join(
+						output_dir,
+						f"{img_splitext2[0]}_{idx}{img_splitext2[1]}"
+					)
 					cv2.imwrite(img_out1,cv2.cvtColor(img1,cv2.COLOR_BGR2RGB))
 					cv2.imwrite(img_out2,cv2.cvtColor(new_img,cv2.COLOR_BGR2RGB))
 
@@ -456,8 +463,19 @@ def register_images_(im1_fname='A.npy',
 		print("Writing registered section to file.")
 
 		os.makedirs(output_dir, exist_ok=True)
-		cv2.imwrite(os.path.join(output_dir,os.path.basename(im1_fname).replace(file_ext,'_registered{}'.format(file_ext))),cv2.cvtColor(im1,cv2.COLOR_BGR2RGB))
-		cv2.imwrite(os.path.join(output_dir,os.path.basename(im2_fname).replace(file_ext,'_registered{}'.format(file_ext))),cv2.cvtColor(new_img,cv2.COLOR_BGR2RGB))
+		# img_splitext1 and img_splitext2 are pairs, (root, ext)
+		img_splitext1 = os.path.splitext(os.path.basename(im1_fname))
+		img_out1 = os.path.join(
+			output_dir,
+			f"{img_splitext1[0]}_registered{img_splitext1[1]}"
+		)
+		img_splitext2 = os.path.splitext(os.path.basename(im2_fname))
+		img_out2 = os.path.join(
+			output_dir,
+			f"{img_splitext2[0]}_registered{img_splitext2[1]}"
+		)
+		cv2.imwrite(img_out1, cv2.cvtColor(im1,cv2.COLOR_BGR2RGB))
+		cv2.imwrite(img_out2, cv2.cvtColor(new_img,cv2.COLOR_BGR2RGB))
 
 class Commands(object):
 	def __init__(self):
