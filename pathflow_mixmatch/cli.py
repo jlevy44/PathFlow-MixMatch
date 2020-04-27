@@ -343,6 +343,20 @@ def register_images_(im1_fname='A.npy',
 
 	_, file_ext = os.path.splitext(im1_fname)
 
+	# TODO: don't rerun splitext, see variable file_ext
+	os.makedirs(output_dir, exist_ok=True)
+	# img_splitext1 and img_splitext2 are pairs, (root, ext)
+	img_splitext1 = os.path.splitext(os.path.basename(im1_fname))
+	img_out1 = os.path.join(
+		output_dir,
+		f"{img_splitext1[0]}_registered{img_splitext1[1]}"
+	)
+	img_splitext2 = os.path.splitext(os.path.basename(im2_fname))
+	img_out2 = os.path.join(
+		output_dir,
+		f"{img_splitext2[0]}_registered{img_splitext2[1]}"
+	)
+
 	if file_ext=='.npy':
 		im1=np.load(im1_fname)
 		im2=np.load(im2_fname)
@@ -429,19 +443,6 @@ def register_images_(im1_fname='A.npy',
 
 					print("[{}/{}] - Writing registered sections to file.".format(idx+1,N))
 
-					# TODO: don't rerun splitext, see variable file_ext
-					os.makedirs(output_dir, exist_ok=True)
-					# img_splitext1 and img_splitext2 are pairs, (root, ext)
-					img_splitext1 = os.path.splitext(os.path.basename(im1_fname))
-					img_out1 = os.path.join(
-						output_dir,
-						f"{img_splitext1[0]}_{idx}{img_splitext1[1]}"
-					)
-					img_splitext2 = os.path.splitext(os.path.basename(im2_fname))
-					img_out2 = os.path.join(
-						output_dir,
-						f"{img_splitext2[0]}_{idx}{img_splitext2[1]}"
-					)
 					cv2.imwrite(img_out1,cv2.cvtColor(img1,cv2.COLOR_BGR2RGB))
 					cv2.imwrite(img_out2,cv2.cvtColor(new_img,cv2.COLOR_BGR2RGB))
 
@@ -462,18 +463,6 @@ def register_images_(im1_fname='A.npy',
 
 		print("Writing registered section to file.")
 
-		os.makedirs(output_dir, exist_ok=True)
-		# img_splitext1 and img_splitext2 are pairs, (root, ext)
-		img_splitext1 = os.path.splitext(os.path.basename(im1_fname))
-		img_out1 = os.path.join(
-			output_dir,
-			f"{img_splitext1[0]}_registered{img_splitext1[1]}"
-		)
-		img_splitext2 = os.path.splitext(os.path.basename(im2_fname))
-		img_out2 = os.path.join(
-			output_dir,
-			f"{img_splitext2[0]}_registered{img_splitext2[1]}"
-		)
 		cv2.imwrite(img_out1, cv2.cvtColor(im1,cv2.COLOR_BGR2RGB))
 		cv2.imwrite(img_out2, cv2.cvtColor(new_img,cv2.COLOR_BGR2RGB))
 
