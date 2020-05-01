@@ -143,20 +143,22 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 
 		# choose the affine transformation model
 		if transform_type == 'non_parametric':
-			transform_args[0]=mov_im_level[0].size
+			transform_args[0]=mov_im_level[level].size
 		elif transform_type in ['bspline','wendland']:
-			# for wendland, sigma must be positive tuple of ints
-			# for wendland, smaller sigma tuple means less loss of
+			# for bspline, sigma must be positive tuple of ints
+			# for bspline, smaller sigma tuple means less loss of
 			# microarchitectural details
+
+			# transform_opts['sigma'] = sigma[level]
 			transform_opts['sigma'] = (1, 1)
 
 		transformation = transforms[transform_type](*transform_args,**transform_opts)
 
-		if level > 0 and transform_type=='bspline':
-			constant_flow = al.transformation.utils.upsample_displacement(constant_flow,
-																		  mov_im_level.size,
-																		  interpolation=interpolation)
-			transformation.set_constant_flow(constant_flow)
+		# if level > 0 and transform_type=='bspline':
+		# 	constant_flow = al.transformation.utils.upsample_displacement(constant_flow,
+		# 																  mov_im_level.size,
+		# 																  interpolation=interpolation)
+		# 	transformation.set_constant_flow(constant_flow)
 
 		if transform_type in ['similarity', 'affine', 'rigid']:
 			# initialize the translation with the center of mass of the fixed image
