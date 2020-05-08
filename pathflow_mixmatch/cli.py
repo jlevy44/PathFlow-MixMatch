@@ -187,8 +187,8 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		# start the registration
 		registration.start()
 
-		if transform_type == 'bspline':
-			constant_flow = transformation.get_flow()
+		# if transform_type == 'bspline':
+		# 	constant_flow = transformation.get_flow()
 
 	# set the intensities back to the original for the visualisation
 	fixed_image.image = 1 - fixed_image.image
