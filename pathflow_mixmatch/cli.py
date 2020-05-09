@@ -100,8 +100,8 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 
 	# load the image data and normalize to [0, 1]
 	# add mask to loss function
-	fixed_image = al.utils.image.create_tensor_image_from_itk_image(sitk.GetImageFromArray(cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY)), dtype=th.float32, device=device)#al.read_image_as_tensor("./practice_reg/1.png", dtype=dtype, device=device)#th.tensor(img1,device='cuda',dtype=dtype)#
-	moving_image = al.utils.image.create_tensor_image_from_itk_image(sitk.GetImageFromArray(cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY)), dtype=th.float32, device=device)#al.read_image_as_tensor("./practice_reg/2.png", dtype=dtype, device=device)#th.tensor(img2,device='cuda',dtype=dtype)#
+	fixed_image = al.utils.image.create_tensor_image_from_itk_image(sitk.GetImageFromArray(cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY)), dtype=th.float32, device='cpu')#device,al.read_image_as_tensor("./practice_reg/1.png", dtype=dtype, device=device)#th.tensor(img1,device='cuda',dtype=dtype)#
+	moving_image = al.utils.image.create_tensor_image_from_itk_image(sitk.GetImageFromArray(cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY)), dtype=th.float32, device='cpu')#device,al.read_image_as_tensor("./practice_reg/2.png", dtype=dtype, device=device)#th.tensor(img2,device='cuda',dtype=dtype)#
 
 	fixed_image, moving_image = al.utils.normalize_images(fixed_image, moving_image)
 
@@ -124,7 +124,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 	if transform_type in ['similarity', 'affine', 'rigid']:
 		transform_opts=dict(opt_cm=opt_cm)
 		transform_args=[moving_image]
-		sigma,fixed_image_pyramid,moving_image_pyramid=[[]],[[]],[[]]
+		sigma,fixed_image_pyramid,moving_image_pyramid=[[]],[fixed_image],[moving_image]
 	else:
 		transform_opts=dict(diffeomorphic=opt_cm, device=('cuda:{}'.format(gpu_device) if gpu_device>=0 else 'cpu'))
 		transform_args=[moving_image.size]
@@ -140,6 +140,8 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 			transform_opts['cp_scale']=order
 
 	for level, (mov_im_level, fix_im_level) in enumerate(zip(moving_image_pyramid, fixed_image_pyramid)):
+
+		mov_im_level,fix_im_level=mov_im_level.to(device),fix_im_level.to(device)
 
 		# choose the affine transformation model
 		if transform_type == 'non_parametric':
@@ -162,7 +164,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 
 		if transform_type in ['similarity', 'affine', 'rigid']:
 			# initialize the translation with the center of mass of the fixed image
-			transformation.init_translation(fixed_image)
+			transformation.init_translation(fix_im_level)
 
 		registration.set_transformation(transformation)
 
@@ -174,7 +176,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 					ssim=al.loss.pairwise.SSIM)
 
 		# choose the Mean Squared Error as image loss
-		image_loss = loss_fns[loss_fn](fixed_image, moving_image)
+		image_loss = loss_fns[loss_fn](fix_im_level, mov_im_level)
 
 		registration.set_image_loss([image_loss])
 
