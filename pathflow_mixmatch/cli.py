@@ -141,9 +141,9 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 
 	for level, (mov_im_level, fix_im_level) in enumerate(zip(moving_image_pyramid, fixed_image_pyramid)):
 
-		mov_im_level=mov_im_level.to(device)
+		mov_im_level=mov_im_level.cuda()
 		print(mov_im_level.shape)
-		fix_im_level=fix_im_level.to(device)
+		fix_im_level=fix_im_level.cuda()
 		print(fix_im_level.shape)
 
 		# choose the affine transformation model
