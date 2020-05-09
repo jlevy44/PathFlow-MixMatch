@@ -207,18 +207,18 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		print("Result parameters:")
 		transformation.print()
 
-	# plot the results
-	plt.subplot(131)
-	plt.imshow(fixed_image.numpy(), cmap='gray')
-	plt.title('Fixed Image')
-
-	plt.subplot(132)
-	plt.imshow(moving_image.numpy(), cmap='gray')
-	plt.title('Moving Image')
-
-	plt.subplot(133)
-	plt.imshow(warped_image.numpy(), cmap='gray')
-	plt.title('Warped Moving Image')
+	# # plot the results
+	# plt.subplot(131)
+	# plt.imshow(fixed_image.numpy(), cmap='gray')
+	# plt.title('Fixed Image')
+	#
+	# plt.subplot(132)
+	# plt.imshow(moving_image.numpy(), cmap='gray')
+	# plt.title('Moving Image')
+	#
+	# plt.subplot(133)
+	# plt.imshow(warped_image.numpy(), cmap='gray')
+	# plt.title('Warped Moving Image')
 
 	if transform_type in ['similarity', 'affine', 'rigid']:
 		transformation_param = transformation._phi_z
