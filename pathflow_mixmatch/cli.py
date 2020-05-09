@@ -155,7 +155,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 			# microarchitectural details
 
 			# transform_opts['sigma'] = sigma[level]
-			transform_opts['sigma'] = (1, 1)
+			transform_opts['sigma'] = sigma[level]#(1, 1)
 
 		transformation = transforms[transform_type](*transform_args,**transform_opts)
 
