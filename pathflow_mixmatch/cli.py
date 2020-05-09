@@ -148,12 +148,12 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 
 		# choose the affine transformation model
 		if transform_type == 'non_parametric':
-			transform_args[0]=mov_im_level[level].size
+			transform_args[0]=mov_im_level.size
 		elif transform_type in ['bspline','wendland']:
 			# for bspline, sigma must be positive tuple of ints
 			# for bspline, smaller sigma tuple means less loss of
 			# microarchitectural details
-			transform_args[0]=mov_im_level[level].size
+			transform_args[0]=mov_im_level.size
 			# transform_opts['sigma'] = sigma[level]
 			transform_opts['sigma'] = sigma[level]#(1, 1)
 
