@@ -153,7 +153,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 			# for bspline, sigma must be positive tuple of ints
 			# for bspline, smaller sigma tuple means less loss of
 			# microarchitectural details
-
+			transform_args[0]=mov_im_level[level].size
 			# transform_opts['sigma'] = sigma[level]
 			transform_opts['sigma'] = sigma[level]#(1, 1)
 
