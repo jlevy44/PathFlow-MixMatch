@@ -66,7 +66,7 @@ def get_matched_tissue(props,props2):
 
 def displace_image(img, displacement, gpu_device, dtype=th.float32):
 	channels=[]
-	image=sitk.GetImageFromArray(img)#[...,i]
+	image=al.utils.image.create_tensor_image_from_itk_image(sitk.GetImageFromArray(img), device=('cuda:{}'.format(gpu_device) if gpu_device>=0 else 'cpu')#[...,i]
 	image_size = image.size
 	grid = al.transformation.utils.compute_grid(image_size[:2], dtype=image.dtype, device=image.device)
 	out=image_from_numpy(np.empty(image_size),(),(),device=image.device,dtype=image.dtype)
