@@ -639,11 +639,11 @@ class Commands(object):
 							points1=points1,
 							points2=points2)
 		if os.path.exists(tre_dictionary):
-			tre_dictionary=pickle.load(open(tre_dictionary,'rb'))
+			tre_dict=pickle.load(open(tre_dictionary,'rb'))
 		else:
-			tre_dictionary=dict()
-		tre_dictionary[transform_type,loss_fn]=tre
-		pickle.dump(tre_dictionary,open(tre_dictionary,'wb'))
+			tre_dict=dict()
+		tre_dict[transform_type,loss_fn]=tre
+		pickle.dump(tre_dict,open(tre_dictionary,'wb'))
 
 def main():
 	fire.Fire(Commands)
