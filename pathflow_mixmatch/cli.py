@@ -130,7 +130,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 	moving_image.image = 1 - moving_image.image
 
 	# create pairwise registration object
-	registration = al.PairwiseRegistration()#half=half
+	registration = (al.PairwiseRegistration if transform_type != 'non_parametric' else al.DemonsRegistraion)()#half=half
 
 	transforms=dict(similarity=al.transformation.pairwise.SimilarityTransformation,
 				   affine=al.transformation.pairwise.AffineTransformation,
@@ -222,7 +222,10 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		registration.set_image_loss([image_loss])
 
 		if transform_type in ['non_parametric','wendland','bspline']:
-			regulariser = al.regulariser.displacement.DiffusionRegulariser(mov_im_level.spacing)
+			if transform_type=='non_parametric':
+				regulariser = al.regulariser.demons.GaussianRegulariser.DiffusionRegulariser(mov_im_level.spacing,sigma=sigma[level], dtype=dtype, device=device)
+			else:
+				regulariser = al.regulariser.displacement.DiffusionRegulariser(mov_im_level.spacing)
 			regulariser.set_weight(regularisation_weight[level])
 			registration.set_regulariser_displacement([regulariser])
 
