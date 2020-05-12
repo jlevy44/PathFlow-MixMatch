@@ -175,7 +175,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 
 
 		optimizer = th.optim.Adam(transformation.parameters(), lr=lr, amsgrad=True)
-		opt_level = 'O1'
+		opt_level = 'O2'
 		transformation, optimizer = amp.initialize(transformation, optimizer, opt_level=opt_level)
 
 		registration.set_transformation(transformation)
