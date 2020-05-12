@@ -86,7 +86,7 @@ def displace_image(img, displacement, gpu_device, dtype=th.float32):
 # limitations under the License.
 
 
-def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similarity', gpu_device=0, opt_cm=True, sigma=[[11,11],[11,11],[3,3]], order=2, pyramid=[[4,4],[2,2]], loss_fn='mse', use_mask=False, interpolation='bicubic', half=False):
+def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similarity', gpu_device=0, opt_cm=True, sigma=[[11,11],[11,11],[3,3]], order=2, pyramid=[[4,4],[2,2]], loss_fn='mse', use_mask=False, interpolation='bicubic', half=False, regularisation_weight=[1,5,50]):
 	assert use_mask==False, "Masking not implemented"
 	assert transform_type in ['similarity', 'affine', 'rigid', 'non_parametric','bspline','wendland']
 	if half:
@@ -205,6 +205,11 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		image_loss = loss_fns[loss_fn](fix_im_level, mov_im_level)
 
 		registration.set_image_loss([image_loss])
+
+		if transform_type in ['non_parametric','wendland','bspline']:
+			regulariser = al.regulariser.displacement.DiffusionRegulariser(mov_im_level.spacing)
+	        regulariser.SetWeight(regularisation_weight[level])
+	        registration.set_regulariser_displacement([regulariser])
 
 		# choose the Adam optimizer to minimize the objective
 
@@ -382,7 +387,8 @@ def register_images_(im1_fname='A.npy',
 						order=2,
 						pyramid=[[4,4],[2,2]],
 						interpolation='bicubic',
-						half=False):
+						half=False,
+						regularisation_weight=[1,5,50]):
 
 	print("Loading images.")
 
@@ -481,7 +487,7 @@ def register_images_(im1_fname='A.npy',
 					print("[{}/{}] - Begin alignment of sections.".format(idx+1,N))
 
 					with (suppress_stdout() if not verbose else contextlib.suppress()):
-						new_img=displace_image(img2,affine_register(img1, img2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half)[0],gpu_device=gpu_device, dtype=th.float32 if not half else th.half) # new tri, output he as well
+						new_img=displace_image(img2,affine_register(img1, img2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half, regularisation_weight=regularisation_weight)[0],gpu_device=gpu_device, dtype=th.float32 if not half else th.half) # new tri, output he as well
 
 					if gpu_device>=0:
 						th.cuda.empty_cache()
@@ -501,7 +507,7 @@ def register_images_(im1_fname='A.npy',
 		print("Performing registration.")
 
 		with (suppress_stdout() if not verbose else contextlib.suppress()):
-			new_img=displace_image(im2,affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half)[0],gpu_device=gpu_device, dtype=th.float32 if not half else th.half) # new tri, output he as well
+			new_img=displace_image(im2,affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half, regularisation_weight=regularisation_weight)[0],gpu_device=gpu_device, dtype=th.float32 if not half else th.half) # new tri, output he as well
 
 		if gpu_device>=0:
 			th.cuda.empty_cache()
@@ -581,7 +587,8 @@ class Commands(object):
 							order=2,
 							pyramid=[[4,4],[2,2]],
 							interpolation='bicubic',
-							half=False):
+							half=False,
+							regularisation_weight=[1,5,50]):
 		register_images_(im1_fname=im1,
 							im2_fname=im2,
 							connectivity=connectivity,
@@ -608,7 +615,8 @@ class Commands(object):
 							order=order,
 							pyramid=pyramid,
 							interpolation=interpolation,
-							half=half)
+							half=half,
+							regularisation_weight=regularisation_weight)
 
 def main():
 	fire.Fire(Commands)
