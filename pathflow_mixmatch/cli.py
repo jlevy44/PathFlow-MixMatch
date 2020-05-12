@@ -125,7 +125,6 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 
 	if transform_type in ['similarity', 'affine', 'rigid']:
 		transform_opts=dict(opt_cm=opt_cm)
-		transform_opts['half'] = half
 		transform_args=[moving_image]
 		sigma,fixed_image_pyramid,moving_image_pyramid=[[]],[fixed_image],[moving_image]
 	else:
@@ -133,7 +132,6 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		transform_args=[moving_image.size]
 		if transform_type in ['bspline','wendland']:
 			transform_opts['sigma']=sigma
-			transform_opts['half'] = half
 			fixed_image_pyramid = al.create_image_pyramid(fixed_image, pyramid)
 			moving_image_pyramid = al.create_image_pyramid(moving_image, pyramid)
 		else:
@@ -144,6 +142,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 			transform_opts['cp_scale']=order
 
 	# transform_opts['dtype']=dtype
+	transform_opts['half']=half
 
 	for level, (mov_im_level, fix_im_level) in enumerate(zip(moving_image_pyramid, fixed_image_pyramid)):
 
