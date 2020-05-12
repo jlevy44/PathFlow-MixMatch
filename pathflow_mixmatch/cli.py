@@ -66,12 +66,20 @@ def get_matched_tissue(props,props2):
 
 def displace_image(img, displacement, gpu_device, dtype=th.float32):
 	channels=[]
-	for i in range(3):
-		print(displacement)
-		im=sitk.GetImageFromArray(img[...,i])
-		im=al.utils.image.create_tensor_image_from_itk_image(im, dtype=dtype, device=('cuda:{}'.format(gpu_device) if gpu_device>=0 else 'cpu'))
-		channels.append(al.transformation.utils.warp_image(im, displacement).numpy())
-	return np.uint8(np.stack(channels).transpose((1,2,0)))
+	image=sitk.GetImageFromArray(img)#[...,i]
+	image_size = image.size
+	grid = al.transformation.utils.compute_grid(image_size[:2], dtype=image.dtype, device=image.device)
+	out=image_from_numpy(np.empty(image_size),(),(),device=image.device,dtype=image.dtype)
+	if len(image_size==2):
+		out.image =  al.transformation.utils.F.grid_sample(image.image, displacement + grid)
+	else:
+		for i in range(image_size[-1]):
+			out.image[...,i] = al.transformation.utils.F.grid_sample(image.image[...,i], displacement + grid)
+	# for i in range(3):
+	#
+	# 	im=al.utils.image.create_tensor_image_from_itk_image(im, dtype=dtype, device=('cuda:{}'.format(gpu_device) if gpu_device>=0 else 'cpu'))
+	# 	channels.append(al.transformation.utils.warp_image(im, displacement).numpy())
+	return np.uint8(out.image.numpy())#np.stack(channels).transpose((1,2,0))
 
 # Copyright 2018 University of Basel, Center for medical Image Analysis and Navigation
 #
@@ -230,7 +238,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 
 	# warp the moving image with the final transformation result
 	displacement = transformation.get_displacement()
-	warped_image = al.transformation.utils.warp_image(moving_image, displacement)
+	# warped_image = al.transformation.utils.warp_image(moving_image, displacement)
 
 	end = time.perf_counter()
 
@@ -262,7 +270,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		transformation_param = transformation._kernel
 	else:
 		pass
-	return displacement, mov_im_level, transformation_param, registration.loss#.data.item()
+	return displacement, moving_image, transformation_param, registration.loss#.data.item()
 
 def get_loss(im1,im2,gpu_device):
 
