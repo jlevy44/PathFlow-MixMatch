@@ -68,6 +68,7 @@ def displace_image(img, displacement, gpu_device, dtype=th.float32):
 	# channels=[]
 	image=al.image_from_numpy(img,(),(), device=('cuda:{}'.format(gpu_device) if gpu_device>=0 else 'cpu'))#[...,i]
 	image_size = image.size
+	print(image_size)
 	grid = al.transformation.utils.compute_grid(image_size[:2], dtype=image.dtype, device=image.device)
 	out=al.image_from_numpy(np.empty(image_size),(),(),device=image.device,dtype=image.dtype)
 	if len(image_size)==2:
