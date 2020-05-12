@@ -67,11 +67,10 @@ def get_matched_tissue(props,props2):
 def displace_image(img, displacement, gpu_device, dtype=th.float32):
 	# channels=[]
 	image=al.image_from_numpy(img,(),(), device=('cuda:{}'.format(gpu_device) if gpu_device>=0 else 'cpu'))#[...,i]
-	image.size = img.shape
 	image_size = image.size
 	grid = al.transformation.utils.compute_grid(image_size[:2], dtype=image.dtype, device=image.device)
 	out=al.image_from_numpy(np.empty(image_size),(),(),device=image.device,dtype=image.dtype)
-	if len(image_size==2):
+	if len(image_size)==2:
 		out.image =  al.transformation.utils.F.grid_sample(image.image, displacement + grid)
 	else:
 		for i in range(image_size[-1]):
