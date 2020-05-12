@@ -173,9 +173,10 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 			# initialize the translation with the center of mass of the fixed image
 			transformation.init_translation(fix_im_level)
 
-		opt_level = 'O1'
+
 		optimizer = th.optim.Adam(transformation.parameters(), lr=lr, amsgrad=True)
-		model, optimizer = amp.initialize(model, optimizer, opt_level=opt_level)
+		opt_level = 'O1'
+		model, optimizer = amp.initialize(transformation, optimizer, opt_level=opt_level)
 
 		registration.set_transformation(transformation)
 
