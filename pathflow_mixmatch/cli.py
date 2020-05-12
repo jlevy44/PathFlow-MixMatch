@@ -540,12 +540,12 @@ class Commands(object):
 		new_img=displace_image(source_img, displacement, gpu_device)
 		cv2.imwrite(source_image.replace('.png','_warped.png') if not output_file else output_file,new_img)
 
-	def compress_images(self,
+	def compress_image(self,
 							im='A.png',
 							compression_factor=2.,
 							im_out='A.compressed.png'):
 		fx=fy=1/compression_factor
-		cv2.imwrite(im_out,cv2.resize(cv2.imread(im),None,fx=fx,fy=fy))
+		cv2.imwrite(im_out,cv2.resize(cv2.imread(im),None,fx=fx,fy=fy,interpolation=cv2.INTER_CUBIC))
 
 	def register_images(self,
 							im1='A.npy',
