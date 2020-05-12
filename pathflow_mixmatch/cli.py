@@ -173,6 +173,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 			# initialize the translation with the center of mass of the fixed image
 			transformation.init_translation(fix_im_level)
 
+		transformation=transformation.to(dtype=th.float32 if not half else th.float16, device=device)
 
 		optimizer = th.optim.Adam(transformation.parameters(), lr=lr, amsgrad=True)
 		opt_level = 'O2'
