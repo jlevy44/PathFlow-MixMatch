@@ -242,7 +242,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		transformation_param = transformation._kernel
 	else:
 		pass
-	return displacement, warped_image, transformation_param, registration.loss.data.item()
+	return displacement, warped_image, transformation_param, registration.loss#.data.item()
 
 def get_loss(im1,im2,gpu_device):
 
