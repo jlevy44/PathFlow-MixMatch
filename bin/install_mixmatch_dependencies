@@ -1,0 +1,3 @@
+#!/bin/bash
+pip install git+https://github.com/jlevy44/airlab.git --upgrade
+pip install git+https://github.com/jlevy44/PathFlow-MixMatch@fix_nonlinear_memory_issues --upgrade

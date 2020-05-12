@@ -164,6 +164,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		transformation = transforms[transform_type](*transform_args,**transform_opts)
 
 		if level > 0 and transform_type in ['bspline','wendland']:
+			print(interpolation)
 			constant_flow = al.transformation.utils.upsample_displacement(constant_flow,
 																		  mov_im_level.size,
 																		  interpolation=interpolation)

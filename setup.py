@@ -25,7 +25,7 @@ setup(name='pathflow_mixmatch',
       author='Joshua Levy',
       author_email='joshualevy44@berkeley.edu',
       license='MIT',
-      scripts=[],
+      scripts=['bin/install_mixmatch_dependencies'],
       entry_points={
             'console_scripts':['pathflow-mixmatch=pathflow_mixmatch.cli:main']
       },
