@@ -146,11 +146,6 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 
 	for level, (mov_im_level, fix_im_level) in enumerate(zip(moving_image_pyramid, fixed_image_pyramid)):
 
-		mov_im_level=mov_im_level.to(dtype=th.float32 if not half else th.float16, device=device)
-		print(mov_im_level.image.shape)
-		fix_im_level=fix_im_level.to(dtype=th.float32 if not half else th.float16, device=device)
-		print(fix_im_level.image.shape)
-
 		# choose the affine transformation model
 		if transform_type == 'non_parametric':
 			transform_args[0]=mov_im_level.size
@@ -190,6 +185,12 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 					mi=al.loss.pairwise.MI,
 					mgf=al.loss.pairwise.NGF,
 					ssim=al.loss.pairwise.SSIM)
+
+		fix_im_level=fix_im_level.to(dtype=th.float32 if not half else th.float16, device=device)
+		print(fix_im_level.image.shape)
+		
+		mov_im_level=mov_im_level.to(dtype=th.float32 if not half else th.float16, device=device)
+		print(mov_im_level.image.shape)
 
 		# choose the Mean Squared Error as image loss
 		image_loss = loss_fns[loss_fn](fix_im_level, mov_im_level)
