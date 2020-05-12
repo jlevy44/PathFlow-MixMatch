@@ -145,7 +145,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 
 	for level, (mov_im_level, fix_im_level) in enumerate(zip(moving_image_pyramid, fixed_image_pyramid)):
 
-		fix_im_level=fix_im_level.to(dtype=th.float32 if not half else th.float16, device=device)
+		fix_im_level=fix_im_level.to(dtype=th.float32, device=device)
 		mov_im_level=mov_im_level.to(dtype=th.float32 if not half else th.float16, device=device)
 
 		# choose the affine transformation model
@@ -175,6 +175,8 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		if transform_type in ['similarity', 'affine', 'rigid']:
 			# initialize the translation with the center of mass of the fixed image
 			transformation.init_translation(fix_im_level)
+		if half:
+			fix_im_level=fix_im_level.to(dtype=th.float16, device=device)
 
 		optimizer = th.optim.Adam(transformation.parameters(), lr=lr[level], amsgrad=True)
 		opt_level = "O2" if half else "O1"
