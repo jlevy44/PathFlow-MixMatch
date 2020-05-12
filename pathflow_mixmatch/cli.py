@@ -208,7 +208,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 
 		if transform_type in ['non_parametric','wendland','bspline']:
 			regulariser = al.regulariser.displacement.DiffusionRegulariser(mov_im_level.spacing)
-			regulariser.SetWeight(regularisation_weight[level])
+			regulariser.set_weight(regularisation_weight[level])
 			registration.set_regulariser_displacement([regulariser])
 
 		# choose the Adam optimizer to minimize the objective
@@ -260,7 +260,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		transformation_param = transformation._kernel
 	else:
 		pass
-	return displacement, warped_image, transformation_param, registration.loss#.data.item()
+	return displacement, mov_im_level, transformation_param, registration.loss#.data.item()
 
 def get_loss(im1,im2,gpu_device):
 
@@ -349,7 +349,7 @@ def match_image_size(img1,img2,black_background=False):
 		img2 = cv2.copyMakeBorder(img2, 0, 0, dw//2+dw%2, dw//2, cv2.BORDER_CONSTANT, value=fill_color)
 	elif img1.shape[1]<img2.shape[1]:
 		img1 = cv2.copyMakeBorder(img1, 0, 0, dw//2+dw%2, dw//2, cv2.BORDER_CONSTANT, value=fill_color)
-	return img1, img2
+	return img1, img2, dw//2+dw%2, dh//2+dh%2
 # add moments, first image should have 1+ corresponding segments / 2 sections
 # while first has fewer sections
 # add mask !!!
@@ -485,7 +485,7 @@ def register_images_(im1_fname='A.npy',
 					c=int(img2.shape[1]/2.)
 					img2=img2[:,c-w:c+w]
 
-					img1,img2=match_image_size(img1,img2,black_background=black_background)
+					img1,img2=match_image_size(img1,img2,black_background=black_background)[:2]
 
 					print("[{}/{}] - Begin alignment of sections.".format(idx+1,N))
 
@@ -505,16 +505,22 @@ def register_images_(im1_fname='A.npy',
 
 	else:
 
-		im1,im2=match_image_size(im1,im2,black_background=black_background)
+		im1,im2,dw,dh=match_image_size(im1,im2,black_background=black_background)
 
 		print("Performing registration.")
 
 		with (suppress_stdout() if not verbose else contextlib.suppress()):
-			displacement=affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half, regularisation_weight=regularisation_weight)[0]
+			displacement,m_im=affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half, regularisation_weight=regularisation_weight)[:2]
 		new_img=displace_image(im2,displacement,gpu_device=gpu_device, dtype=th.float32 if not half else th.half) # new tri, output he as well
 
 		if points1 and points2 and os.path.exists(points1) and os.path.exists(points2):
-			tre=al.utils.points.Points.TRE(pd.read_csv(points1,index_col=0).values,al.utils.points.Points.transform(pd.read_csv(points2,index_col=0).values,displacement))
+			displacement = al.transformation.utils.unit_displacement_to_displacement(displacement)  # unit measures to image domain measures
+			displacement = al.create_displacement_image_from_image(displacement, m_im)
+			points1=pd.read_csv(points1,index_col=0).values
+			points2=pd.read_csv(points2,index_col=0).values
+			points2[:,0]+=dw
+			points2[:,1]+=dh
+			tre=al.utils.points.Points.TRE(points1,al.utils.points.Points.transform(points2,displacement))
 		else:
 			tre=-1
 		if gpu_device>=0:
