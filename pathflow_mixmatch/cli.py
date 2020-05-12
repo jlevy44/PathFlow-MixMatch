@@ -92,7 +92,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 	start = time.perf_counter()
 
 	# set the used data type
-	dtype = th.float32 if not half else th.half
+	dtype = th.float32# if not half else th.half
 	# set the device for the computaion to CPU
 	device = th.device("cuda:{}".format(gpu_device) if gpu_device >=0 else 'cpu')
 
