@@ -141,7 +141,6 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		if transform_type=='wendland':
 			transform_opts['cp_scale']=order
 
-	transform_opts['dtype']=th.float32 if not half else th.half
 	transform_opts['half']=half
 
 	for level, (mov_im_level, fix_im_level) in enumerate(zip(moving_image_pyramid, fixed_image_pyramid)):
