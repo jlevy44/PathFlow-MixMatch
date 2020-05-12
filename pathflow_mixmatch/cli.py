@@ -159,7 +159,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 			# transform_opts['sigma'] = sigma[level]
 			transform_opts['sigma'] = sigma[level]#(1, 1)
 		else:
-			transform_args[0]=mov_im_level
+			transform_args[0]=moving_image
 
 		transformation = transforms[transform_type](*transform_args,**transform_opts)
 
