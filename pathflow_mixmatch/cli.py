@@ -28,6 +28,8 @@ import matplotlib
 import matplotlib.pyplot as plt
 from contextlib import contextmanager
 import sys, os
+from apex import amp
+
 
 @contextmanager
 def suppress_stdout():
@@ -171,6 +173,10 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 			# initialize the translation with the center of mass of the fixed image
 			transformation.init_translation(fix_im_level)
 
+		opt_level = 'O1'
+		optimizer = th.optim.Adam(transformation.parameters(), lr=lr, amsgrad=True)
+		model, optimizer = amp.initialize(model, optimizer, opt_level=opt_level)
+
 		registration.set_transformation(transformation)
 
 		loss_fns=dict(mse=al.loss.pairwise.MSE,
@@ -186,7 +192,6 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		registration.set_image_loss([image_loss])
 
 		# choose the Adam optimizer to minimize the objective
-		optimizer = th.optim.Adam(transformation.parameters(), lr=lr, amsgrad=True)
 
 		registration.set_optimizer(optimizer)
 		registration.set_number_of_iterations(iterations)
