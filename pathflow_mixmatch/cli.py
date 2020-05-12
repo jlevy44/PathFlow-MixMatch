@@ -179,7 +179,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		transformation=transformation.to(dtype=th.float32 if not half else th.float16, device=device)
 
 		optimizer = th.optim.Adam(transformation.parameters(), lr=lr[level], amsgrad=True)
-		opt_level = "O2" if half else "01"
+		opt_level = "O2" if half else "O1"
 		transformation, optimizer = amp.initialize(transformation, optimizer, opt_level=opt_level)
 
 		registration.set_transformation(transformation)
