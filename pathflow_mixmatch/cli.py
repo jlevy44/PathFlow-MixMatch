@@ -1,5 +1,5 @@
 import fire
-import numpy as np, cv2
+import numpy as np, pandas as pd, cv2
 import cv2
 from skimage.morphology import watershed
 from skimage.feature import peak_local_max
@@ -388,7 +388,9 @@ def register_images_(im1_fname='A.npy',
 						pyramid=[[4,4],[2,2]],
 						interpolation='bicubic',
 						half=False,
-						regularisation_weight=[1,5,50]):
+						regularisation_weight=[1,5,50],
+						points1='',
+						points2=''):
 
 	print("Loading images.")
 
@@ -415,6 +417,7 @@ def register_images_(im1_fname='A.npy',
 		im1=cv2.imread(im1_fname)
 		im2=cv2.imread(im2_fname)
 
+	tre=-1
 	if not no_segment_analysis:
 
 		if max_rotation_vertical_px:
@@ -507,8 +510,13 @@ def register_images_(im1_fname='A.npy',
 		print("Performing registration.")
 
 		with (suppress_stdout() if not verbose else contextlib.suppress()):
-			new_img=displace_image(im2,affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half, regularisation_weight=regularisation_weight)[0],gpu_device=gpu_device, dtype=th.float32 if not half else th.half) # new tri, output he as well
+			displacement=affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half, regularisation_weight=regularisation_weight)[0]
+		new_img=displace_image(im2,displacement,gpu_device=gpu_device, dtype=th.float32 if not half else th.half) # new tri, output he as well
 
+		if points1 and points2 and os.path.exists(points1) and os.path.exists(points2):
+			tre=al.utils.points.Points.TRE(pd.read_csv(points1,index_col=0).values,al.utils.points.Points.transform(pd.read_csv(points2,index_col=0).values,displacement))
+		else:
+			tre=-1
 		if gpu_device>=0:
 			th.cuda.empty_cache()
 
@@ -516,6 +524,7 @@ def register_images_(im1_fname='A.npy',
 
 		cv2.imwrite(img_out1, cv2.cvtColor(im1,cv2.COLOR_BGR2RGB))
 		cv2.imwrite(img_out2, cv2.cvtColor(new_img,cv2.COLOR_BGR2RGB))
+	return tre
 
 class Commands(object):
 	def __init__(self):
@@ -588,8 +597,11 @@ class Commands(object):
 							pyramid=[[4,4],[2,2]],
 							interpolation='bicubic',
 							half=False,
-							regularisation_weight=[1,5,50]):
-		register_images_(im1_fname=im1,
+							regularisation_weight=[1,5,50],
+							points1='',
+							points2='',
+							tre_dictionary='results.p'):
+		tre=register_images_(im1_fname=im1,
 							im2_fname=im2,
 							connectivity=connectivity,
 							apply_watershed=False,
@@ -616,7 +628,15 @@ class Commands(object):
 							pyramid=pyramid,
 							interpolation=interpolation,
 							half=half,
-							regularisation_weight=regularisation_weight)
+							regularisation_weight=regularisation_weight,
+							points1=points1,
+							points2=points2)
+		if os.path.exists(tre_dictionary):
+			tre_dictionary=pickle.load(open(tre_dictionary,'rb'))
+		else:
+			tre_dictionary=dict()
+		tre_dictionary[transform_type,loss_fn]=tre
+		pickle.dump(tre_dictionary,open(tre_dictionary,'wb'))
 
 def main():
 	fire.Fire(Commands)
