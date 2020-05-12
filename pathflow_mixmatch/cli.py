@@ -141,7 +141,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		if transform_type=='wendland':
 			transform_opts['cp_scale']=order
 
-	transform_opts['dtype']=dtype
+	# transform_opts['dtype']=dtype
 
 	for level, (mov_im_level, fix_im_level) in enumerate(zip(moving_image_pyramid, fixed_image_pyramid)):
 
@@ -176,7 +176,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 
 		optimizer = th.optim.Adam(transformation.parameters(), lr=lr, amsgrad=True)
 		opt_level = 'O1'
-		model, optimizer = amp.initialize(transformation, optimizer, opt_level=opt_level)
+		transformation, optimizer = amp.initialize(transformation, optimizer, opt_level=opt_level)
 
 		registration.set_transformation(transformation)
 
