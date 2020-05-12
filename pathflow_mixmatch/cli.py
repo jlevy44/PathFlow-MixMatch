@@ -83,6 +83,7 @@ def displace_image(img, displacement, gpu_device, dtype=th.float32):
 	img=np.uint8(out.image.detach().cpu().numpy())
 	print(img)
 	print(img.max())
+	print(img.shape)
 	return img#np.stack(channels).transpose((1,2,0))
 
 # Copyright 2018 University of Basel, Center for medical Image Analysis and Navigation
