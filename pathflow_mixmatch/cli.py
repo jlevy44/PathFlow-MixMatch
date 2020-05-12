@@ -156,6 +156,8 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 			# transform_opts['sigma'] = sigma[level]
 			transform_opts['sigma'] = sigma[level]#(1, 1)
 
+		fix_im_level=fix_im_level.to(dtype=th.float32, device=device)
+
 		transformation = transforms[transform_type](*transform_args,**transform_opts)
 
 		transformation=transformation.to(device=device)# dtype=th.float32,  if not half else th.float16
@@ -184,7 +186,8 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 					mgf=al.loss.pairwise.NGF,
 					ssim=al.loss.pairwise.SSIM)
 
-		fix_im_level=fix_im_level.to(dtype=th.float32 if not half else th.float16, device=device)
+		if half:
+			fix_im_level=fix_im_level.half()
 		mov_im_level=mov_im_level.to(dtype=th.float32 if not half else th.float16, device=device)
 
 		# choose the Mean Squared Error as image loss
