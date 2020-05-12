@@ -163,11 +163,11 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 
 		transformation = transforms[transform_type](*transform_args,**transform_opts)
 
-		# if level > 0 and transform_type=='bspline':
-		# 	constant_flow = al.transformation.utils.upsample_displacement(constant_flow,
-		# 																  mov_im_level.size,
-		# 																  interpolation=interpolation)
-		# 	transformation.set_constant_flow(constant_flow)
+		if level > 0 and transform_type in ['bspline','wendland']:
+			constant_flow = al.transformation.utils.upsample_displacement(constant_flow,
+																		  mov_im_level.size,
+																		  interpolation=interpolation)
+			transformation.set_constant_flow(constant_flow)
 
 		if transform_type in ['similarity', 'affine', 'rigid']:
 			# initialize the translation with the center of mass of the fixed image
@@ -201,8 +201,8 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		# start the registration
 		registration.start()
 
-		# if transform_type == 'bspline':
-		# 	constant_flow = transformation.get_flow()
+		if transform_type in ['bspline','wendland']:
+			constant_flow = transformation.get_flow()
 
 	# set the intensities back to the original for the visualisation
 	fixed_image.image = 1 - fixed_image.image
