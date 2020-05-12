@@ -81,10 +81,10 @@ def displace_image(img, displacement, gpu_device, dtype=th.float32):
 	# 	im=al.utils.image.create_tensor_image_from_itk_image(im, dtype=dtype, device=('cuda:{}'.format(gpu_device) if gpu_device>=0 else 'cpu'))
 	# 	channels.append(al.transformation.utils.warp_image(im, displacement).numpy())
 	img=np.uint8(out.image.detach().cpu().numpy())
-	print(img)
-	print(img.max())
-	print(img.shape)
-	return img#np.stack(channels).transpose((1,2,0))
+	# print(img)
+	# print(img.max())
+	# print(img.shape)
+	return img[0][0]#np.stack(channels).transpose((1,2,0))
 
 # Copyright 2018 University of Basel, Center for medical Image Analysis and Navigation
 #
