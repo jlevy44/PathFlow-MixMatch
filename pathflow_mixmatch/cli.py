@@ -175,7 +175,6 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		optimizer = th.optim.Adam(transformation.parameters(), lr=lr[level], amsgrad=True)
 		opt_level = "O2" if half else "O1"
 		transformation, optimizer = amp.initialize(transformation, optimizer, opt_level=opt_level)
-		print(transformation.state_dict())
 
 		registration.set_transformation(transformation)
 
@@ -187,10 +186,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 					ssim=al.loss.pairwise.SSIM)
 
 		fix_im_level=fix_im_level.to(dtype=th.float32 if not half else th.float16, device=device)
-		print(fix_im_level.image.shape)
-		
 		mov_im_level=mov_im_level.to(dtype=th.float32 if not half else th.float16, device=device)
-		print(mov_im_level.image.shape)
 
 		# choose the Mean Squared Error as image loss
 		image_loss = loss_fns[loss_fn](fix_im_level, mov_im_level)
