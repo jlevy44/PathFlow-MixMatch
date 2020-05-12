@@ -100,8 +100,8 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 
 	# load the image data and normalize to [0, 1]
 	# add mask to loss function
-	fixed_image = al.utils.image.create_tensor_image_from_itk_image(sitk.GetImageFromArray(cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY)), dtype=th.float32 if not half else th.half, device='cpu')#device,al.read_image_as_tensor("./practice_reg/1.png", dtype=dtype, device=device)#th.tensor(img1,device='cuda',dtype=dtype)#
-	moving_image = al.utils.image.create_tensor_image_from_itk_image(sitk.GetImageFromArray(cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY)), dtype=th.float32 if not half else th.half, device='cpu')#device,al.read_image_as_tensor("./practice_reg/2.png", dtype=dtype, device=device)#th.tensor(img2,device='cuda',dtype=dtype)#
+	fixed_image = al.utils.image.create_tensor_image_from_itk_image(sitk.GetImageFromArray(cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY)), dtype=th.float32 if not half else th.float16, device='cpu')#device,al.read_image_as_tensor("./practice_reg/1.png", dtype=dtype, device=device)#th.tensor(img1,device='cuda',dtype=dtype)#
+	moving_image = al.utils.image.create_tensor_image_from_itk_image(sitk.GetImageFromArray(cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY)), dtype=th.float32 if not half else th.float16, device='cpu')#device,al.read_image_as_tensor("./practice_reg/2.png", dtype=dtype, device=device)#th.tensor(img2,device='cuda',dtype=dtype)#
 
 	fixed_image, moving_image = al.utils.normalize_images(fixed_image, moving_image)
 
