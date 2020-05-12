@@ -208,8 +208,8 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 
 		if transform_type in ['non_parametric','wendland','bspline']:
 			regulariser = al.regulariser.displacement.DiffusionRegulariser(mov_im_level.spacing)
-	        regulariser.SetWeight(regularisation_weight[level])
-	        registration.set_regulariser_displacement([regulariser])
+			regulariser.SetWeight(regularisation_weight[level])
+			registration.set_regulariser_displacement([regulariser])
 
 		# choose the Adam optimizer to minimize the objective
 
