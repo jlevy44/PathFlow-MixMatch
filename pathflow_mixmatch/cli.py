@@ -101,7 +101,7 @@ def displace_image(img, displacement, gpu_device, dtype=th.float32):
 # limitations under the License.
 
 
-def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similarity', gpu_device=0, opt_cm=True, sigma=[[11,11],[11,11],[3,3]], order=2, pyramid=[[4,4],[2,2]], loss_fn='mse', use_mask=False, interpolation='bicubic', half=False, regularisation_weight=[1,5,50]):
+def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similarity', gpu_device=0, opt_cm=True, sigma=[[11,11],[11,11],[3,3]], order=2, pyramid=[[4,4],[2,2]], loss_fn='mse', use_mask=False, interpolation='bicubic', half=False, regularisation_weight=[1,5,50], moving_image=None):
 	assert use_mask==False, "Masking not implemented"
 	assert transform_type in ['similarity', 'affine', 'rigid', 'non_parametric','bspline','wendland']
 	if half:
@@ -120,9 +120,10 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 	# load the image data and normalize to [0, 1]
 	# add mask to loss function
 	fixed_image = al.utils.image.create_tensor_image_from_itk_image(sitk.GetImageFromArray(cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY)), dtype=th.float32, device='cpu')#device,al.read_image_as_tensor("./practice_reg/1.png", dtype=dtype, device=device)#th.tensor(img1,device='cuda',dtype=dtype)#
-	moving_image = al.utils.image.create_tensor_image_from_itk_image(sitk.GetImageFromArray(cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY)), dtype=th.float32, device='cpu')#device,al.read_image_as_tensor("./practice_reg/2.png", dtype=dtype, device=device)#th.tensor(img2,device='cuda',dtype=dtype)#
 
-	fixed_image, moving_image = al.utils.normalize_images(fixed_image, moving_image)
+	if not isinstance(moving_image,type(None)):
+		moving_image = al.utils.image.create_tensor_image_from_itk_image(sitk.GetImageFromArray(cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY)), dtype=th.float32, device='cpu')#device,al.read_image_as_tensor("./practice_reg/2.png", dtype=dtype, device=device)#th.tensor(img2,device='cuda',dtype=dtype)#
+		fixed_image, moving_image = al.utils.normalize_images(fixed_image, moving_image)
 
 	# convert intensities so that the object intensities are 1 and the background 0. This is important in order to
 	# calculate the center of mass of the object
@@ -247,7 +248,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 
 	# warp the moving image with the final transformation result
 	displacement = transformation.get_displacement()
-	# warped_image = al.transformation.utils.warp_image(moving_image, displacement)
+	warped_image = al.transformation.utils.warp_image(moving_image, displacement)
 
 	end = time.perf_counter()
 
@@ -279,7 +280,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		transformation_param = transformation._kernel
 	else:
 		pass
-	return displacement, moving_image, transformation_param, registration.loss#.data.item()
+	return displacement, (warped_image, moving_image), transformation_param, registration.loss#.data.item()
 
 def get_loss(im1,im2,gpu_device):
 
@@ -409,7 +410,8 @@ def register_images_(im1_fname='A.npy',
 						half=False,
 						regularisation_weight=[1,5,50],
 						points1='',
-						points2=''):
+						points2='',
+						pre_transform='rigid'):
 
 	print("Loading images.")
 
@@ -528,18 +530,29 @@ def register_images_(im1_fname='A.npy',
 
 		print("Performing registration.")
 
+		displacements=[]
 		with (suppress_stdout() if not verbose else contextlib.suppress()):
-			displacement,m_im=affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half, regularisation_weight=regularisation_weight)[:2]
-		new_img=displace_image(im2,displacement,gpu_device=gpu_device, dtype=th.float32 if not half else th.half) # new tri, output he as well
+			displacement,warp_mv_im=affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=pre_transform, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half, regularisation_weight=regularisation_weight)[:2]
+			displacements.append([displacement,warp_mv_im])
+			displacement,warp_mv_im=affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half, regularisation_weight=regularisation_weight, moving_image=warped_image)[:2]
+			displacements.append([displacement,warp_mv_im])
+
+		new_img=displace_image(im2,displacement[0][0],gpu_device=gpu_device, dtype=th.float32 if not half else th.half) # new tri, output he as well
+		new_img=displace_image(new_img,displacement[1][0],gpu_device=gpu_device, dtype=th.float32 if not half else th.half) # new tri, output he as well
 
 		if points1 and points2 and os.path.exists(points1) and os.path.exists(points2):
-			displacement = al.transformation.utils.unit_displacement_to_displacement(displacement)  # unit measures to image domain measures
-			displacement = al.create_displacement_image_from_image(displacement, m_im)
+			displacements_final=[]
+			for displacement,(warp,m_im) in displacements:
+				displacement = al.transformation.utils.unit_displacement_to_displacement(displacement)  # unit measures to image domain measures
+				displacement = al.create_displacement_image_from_image(displacement, m_im)
+				displacements_final.append(displacement)
 			points1=pd.read_csv(points1,index_col=0).values
 			points2=pd.read_csv(points2,index_col=0).values
 			points2[:,0]+=dw
 			points2[:,1]+=dh
-			tre=al.utils.points.Points.TRE(points1,al.utils.points.Points.transform(points2,displacement))
+			for displacement in displacements_final:
+				points2=al.utils.points.Points.transform(points2,displacement)
+			tre=al.utils.points.Points.TRE(points1,points2)
 		else:
 			tre=-1
 		if gpu_device>=0:
@@ -625,7 +638,8 @@ class Commands(object):
 							regularisation_weight=[1,5,50],
 							points1='',
 							points2='',
-							tre_dictionary='results.p'):
+							tre_dictionary='results.p',
+							pre_transform='rigid'):
 		tre=register_images_(im1_fname=im1,
 							im2_fname=im2,
 							connectivity=connectivity,
@@ -655,7 +669,8 @@ class Commands(object):
 							half=half,
 							regularisation_weight=regularisation_weight,
 							points1=points1,
-							points2=points2)
+							points2=points2,
+							pre_transform=pre_transform)
 		if os.path.exists(tre_dictionary):
 			tre_dict=pickle.load(open(tre_dictionary,'rb'))
 		else:
