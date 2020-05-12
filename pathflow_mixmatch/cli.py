@@ -181,6 +181,10 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 			transformation.init_translation(fix_im_level)
 		if half:
 			fix_im_level=fix_im_level.to(dtype=th.float16, device=device)
+			transformation._dtype=th.float16
+			transformation._device=device
+
+
 
 		optimizer = th.optim.Adam(transformation.parameters(), lr=lr[level], amsgrad=True)
 		opt_level = "O2" if half else "O1"
