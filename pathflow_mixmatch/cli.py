@@ -84,13 +84,13 @@ def displace_image(img, displacement, gpu_device, dtype=th.float32):
 # limitations under the License.
 
 
-def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similarity', gpu_device=0, opt_cm=True, sigma=[[11,11],[11,11],[3,3]], order=2, pyramid=[[4,4],[2,2]], loss_fn='mse', use_mask=False, interpolation='bicubic'):
+def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similarity', gpu_device=0, opt_cm=True, sigma=[[11,11],[11,11],[3,3]], order=2, pyramid=[[4,4],[2,2]], loss_fn='mse', use_mask=False, interpolation='bicubic', half=False):
 	assert use_mask==False, "Masking not implemented"
 	assert transform_type in ['similarity', 'affine', 'rigid', 'non_parametric','bspline','wendland']
 	start = time.perf_counter()
 
 	# set the used data type
-	dtype = th.float32
+	dtype = th.float32 if not half else th.half
 	# set the device for the computaion to CPU
 	device = th.device("cuda:{}".format(gpu_device) if gpu_device >=0 else 'cpu')
 
@@ -100,8 +100,8 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 
 	# load the image data and normalize to [0, 1]
 	# add mask to loss function
-	fixed_image = al.utils.image.create_tensor_image_from_itk_image(sitk.GetImageFromArray(cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY)), dtype=th.float32, device='cpu')#device,al.read_image_as_tensor("./practice_reg/1.png", dtype=dtype, device=device)#th.tensor(img1,device='cuda',dtype=dtype)#
-	moving_image = al.utils.image.create_tensor_image_from_itk_image(sitk.GetImageFromArray(cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY)), dtype=th.float32, device='cpu')#device,al.read_image_as_tensor("./practice_reg/2.png", dtype=dtype, device=device)#th.tensor(img2,device='cuda',dtype=dtype)#
+	fixed_image = al.utils.image.create_tensor_image_from_itk_image(sitk.GetImageFromArray(cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY)), dtype=th.float32 if not half else th.half, device='cpu')#device,al.read_image_as_tensor("./practice_reg/1.png", dtype=dtype, device=device)#th.tensor(img1,device='cuda',dtype=dtype)#
+	moving_image = al.utils.image.create_tensor_image_from_itk_image(sitk.GetImageFromArray(cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY)), dtype=th.float32 if not half else th.half, device='cpu')#device,al.read_image_as_tensor("./practice_reg/2.png", dtype=dtype, device=device)#th.tensor(img2,device='cuda',dtype=dtype)#
 
 	fixed_image, moving_image = al.utils.normalize_images(fixed_image, moving_image)
 
@@ -359,7 +359,8 @@ def register_images_(im1_fname='A.npy',
 						sigma=[[11,11],[11,11],[3,3]],
 						order=2,
 						pyramid=[[4,4],[2,2]],
-						interpolation='bicubic'):
+						interpolation='bicubic',
+						half=False):
 
 	print("Loading images.")
 
@@ -458,7 +459,7 @@ def register_images_(im1_fname='A.npy',
 					print("[{}/{}] - Begin alignment of sections.".format(idx+1,N))
 
 					with (suppress_stdout() if not verbose else contextlib.suppress()):
-						new_img=displace_image(img2,affine_register(img1, img2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation)[0],gpu_device=gpu_device) # new tri, output he as well
+						new_img=displace_image(img2,affine_register(img1, img2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half)[0],gpu_device=gpu_device, dtype=th.float32 if not half else th.half) # new tri, output he as well
 
 					if gpu_device>=0:
 						th.cuda.empty_cache()
@@ -478,7 +479,7 @@ def register_images_(im1_fname='A.npy',
 		print("Performing registration.")
 
 		with (suppress_stdout() if not verbose else contextlib.suppress()):
-			new_img=displace_image(im2,affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation)[0],gpu_device=gpu_device) # new tri, output he as well
+			new_img=displace_image(im2,affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half)[0],gpu_device=gpu_device, dtype=th.float32 if not half else th.half) # new tri, output he as well
 
 		if gpu_device>=0:
 			th.cuda.empty_cache()
@@ -550,7 +551,8 @@ class Commands(object):
 							sigma=[[11,11],[11,11],[3,3]],
 							order=2,
 							pyramid=[[4,4],[2,2]],
-							interpolation='bicubic'):
+							interpolation='bicubic',
+							half=False):
 		register_images_(im1_fname=im1,
 							im2_fname=im2,
 							connectivity=connectivity,
@@ -576,7 +578,8 @@ class Commands(object):
 							sigma=sigma,
 							order=order,
 							pyramid=pyramid,
-							interpolation=interpolation)
+							interpolation=interpolation,
+							half=half)
 
 def main():
 	fire.Fire(Commands)
