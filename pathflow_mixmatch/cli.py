@@ -159,6 +159,8 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 
 		transformation = transforms[transform_type](*transform_args,**transform_opts)
 
+		transformation=transformation.to(device=device)# dtype=th.float32,  if not half else th.float16
+
 		if level > 0 and transform_type in ['bspline','wendland']:
 			print(interpolation)
 			constant_flow = al.transformation.utils.upsample_displacement(constant_flow,
@@ -169,11 +171,6 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		if transform_type in ['similarity', 'affine', 'rigid']:
 			# initialize the translation with the center of mass of the fixed image
 			transformation.init_translation(fix_im_level)
-
-		transformation=transformation.to(device=device)# dtype=th.float32,  if not half else th.float16
-		if th.cuda.is_available():
-			transformation=transformation.cuda()
-			transformation._device=("cuda:{}".format(gpu_device) if gpu_device >=0 else 'cpu')
 
 		optimizer = th.optim.Adam(transformation.parameters(), lr=lr[level], amsgrad=True)
 		opt_level = "O2" if half else "O1"
