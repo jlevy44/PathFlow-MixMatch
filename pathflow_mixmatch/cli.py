@@ -125,6 +125,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 
 	if transform_type in ['similarity', 'affine', 'rigid']:
 		transform_opts=dict(opt_cm=opt_cm)
+		transform_opts['half'] = half
 		transform_args=[moving_image]
 		sigma,fixed_image_pyramid,moving_image_pyramid=[[]],[fixed_image],[moving_image]
 	else:
@@ -132,6 +133,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		transform_args=[moving_image.size]
 		if transform_type in ['bspline','wendland']:
 			transform_opts['sigma']=sigma
+			transform_opts['half'] = half
 			fixed_image_pyramid = al.create_image_pyramid(fixed_image, pyramid)
 			moving_image_pyramid = al.create_image_pyramid(moving_image, pyramid)
 		else:
@@ -176,8 +178,8 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 
 		transformation=transformation.to(dtype=th.float32 if not half else th.float16, device=device)
 
-		optimizer = th.optim.Adam(transformation.parameters(), lr=lr, amsgrad=True)
-		opt_level = 'O2'
+		optimizer = th.optim.Adam(transformation.parameters(), lr=lr[level], amsgrad=True)
+		opt_level = "O2" if half else "01"
 		transformation, optimizer = amp.initialize(transformation, optimizer, opt_level=opt_level)
 
 		registration.set_transformation(transformation)
@@ -359,7 +361,7 @@ def register_images_(im1_fname='A.npy',
 						gpu_device=0,
 						max_rotation_vertical_px=0,
 						loss_fn='mse',
-						lr=0.01,
+						lr=[0.01]*3,
 						transform_type='rigid',
 						iterations=1000,
 						no_segment_analysis=False,
