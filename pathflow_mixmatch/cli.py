@@ -160,7 +160,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 
 		transformation = transforms[transform_type](*transform_args,**transform_opts)
 
-		# transformation=transformation.to(device=device)# dtype=th.float32,  if not half else th.float16
+		transformation=transformation.to(device=device)# dtype=th.float32,  if not half else th.float16
 
 		if level > 0 and transform_type in ['bspline','wendland']:
 			print(interpolation)
