@@ -187,7 +187,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 					ssim=al.loss.pairwise.SSIM)
 
 		if half:
-			fix_im_level=fix_im_level.half()
+			fix_im_level=fix_im_level.to(dtype=th.float16)
 		mov_im_level=mov_im_level.to(dtype=th.float32 if not half else th.float16, device=device)
 
 		# choose the Mean Squared Error as image loss
