@@ -65,8 +65,9 @@ def get_matched_tissue(props,props2):
 	return enumerate(pd.DataFrame(sklearn.metrics.pairwise.pairwise_distances(x[:props.shape[0]],x[props.shape[0]:],'euclidean')).values.argmin(1))#pd.DataFrame(sklearn.metrics.pairwise.cosine_similarity(pd.DataFrame(x).T)).iloc[:props.shape[0],props.shape[0]:]#pd.DataFrame(x).T.corr()>0.95
 
 def displace_image(img, displacement, gpu_device, dtype=th.float32):
-	channels=[]
+	# channels=[]
 	image=al.image_from_numpy(img,(),(), device=('cuda:{}'.format(gpu_device) if gpu_device>=0 else 'cpu'))#[...,i]
+	image.size = img.shape
 	image_size = image.size
 	grid = al.transformation.utils.compute_grid(image_size[:2], dtype=image.dtype, device=image.device)
 	out=al.image_from_numpy(np.empty(image_size),(),(),device=image.device,dtype=image.dtype)
