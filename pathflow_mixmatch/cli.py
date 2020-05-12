@@ -534,7 +534,7 @@ def register_images_(im1_fname='A.npy',
 		with (suppress_stdout() if not verbose else contextlib.suppress()):
 			displacement,warp_mv_im=affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=pre_transform, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half, regularisation_weight=regularisation_weight)[:2]
 			displacements.append([displacement,warp_mv_im])
-			displacement,warp_mv_im=affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half, regularisation_weight=regularisation_weight, moving_image=warped_image)[:2]
+			displacement,warp_mv_im=affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half, regularisation_weight=regularisation_weight, moving_image=warp_mv_im[1])[:2]
 			displacements.append([displacement,warp_mv_im])
 
 		new_img=displace_image(im2,displacement[0][0],gpu_device=gpu_device, dtype=th.float32 if not half else th.half) # new tri, output he as well
