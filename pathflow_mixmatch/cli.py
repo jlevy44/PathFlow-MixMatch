@@ -28,7 +28,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 from contextlib import contextmanager
 import sys, os
-from apex import amp
+# from apex import amp
 
 
 @contextmanager
@@ -89,6 +89,8 @@ def displace_image(img, displacement, gpu_device, dtype=th.float32):
 def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similarity', gpu_device=0, opt_cm=True, sigma=[[11,11],[11,11],[3,3]], order=2, pyramid=[[4,4],[2,2]], loss_fn='mse', use_mask=False, interpolation='bicubic', half=False):
 	assert use_mask==False, "Masking not implemented"
 	assert transform_type in ['similarity', 'affine', 'rigid', 'non_parametric','bspline','wendland']
+	if half:
+		raise NotImplementedError
 	start = time.perf_counter()
 
 	# set the used data type
@@ -141,10 +143,11 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		if transform_type=='wendland':
 			transform_opts['cp_scale']=order
 
-	transform_opts['half']=half
+	# transform_opts['half']=half
 
 	for level, (mov_im_level, fix_im_level) in enumerate(zip(moving_image_pyramid, fixed_image_pyramid)):
 		mov_im_level=mov_im_level.to(dtype=th.float32, device=device)
+		fix_im_level=fix_im_level.to(dtype=th.float32, device=device)
 		# choose the affine transformation model
 		if transform_type == 'non_parametric':
 			transform_args[0]=mov_im_level.size
@@ -160,10 +163,10 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 
 		transformation = transforms[transform_type](*transform_args,**transform_opts)
 
-		if half:
-			mov_im_level=mov_im_level.to(dtype=th.float16, device=device)
+		# if half:
+		# 	mov_im_level=mov_im_level.to(dtype=th.float16, device=device)
 
-		transformation=transformation.to(dtype=th.float32, device=device)# dtype=th.float32,  if not half else th.float16
+		# transformation=transformation.to(dtype=th.float32, device=device)# dtype=th.float32,  if not half else th.float16
 
 		if level > 0 and transform_type in ['bspline','wendland']:
 			print(interpolation)
@@ -172,20 +175,20 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 																		  interpolation=interpolation)
 			transformation.set_constant_flow(constant_flow)
 
-		fix_im_level=fix_im_level.to(dtype=th.float32, device=device)
+		#
 		if transform_type in ['similarity', 'affine', 'rigid']:
 			# initialize the translation with the center of mass of the fixed image
 			transformation.init_translation(fix_im_level)
-		if half:
-			fix_im_level=fix_im_level.to(dtype=th.float16, device=device)
-			transformation._dtype=th.float16
-			transformation._device=device
+		# if half:
+		# 	fix_im_level=fix_im_level.to(dtype=th.float16, device=device)
+		# 	transformation._dtype=th.float16
+		# 	transformation._device=device
 
 
 
 		optimizer = th.optim.Adam(transformation.parameters(), lr=lr[level], amsgrad=True)
-		opt_level = "O2" if half else "O1"
-		transformation, optimizer = amp.initialize(transformation, optimizer, opt_level=opt_level)
+		# opt_level = "O2" if half else "O1"
+		# transformation, optimizer = amp.initialize(transformation, optimizer, opt_level=opt_level)
 
 		registration.set_transformation(transformation)
 
@@ -536,6 +539,13 @@ class Commands(object):
 			displacement=displacement.cuda()
 		new_img=displace_image(source_img, displacement, gpu_device)
 		cv2.imwrite(source_image.replace('.png','_warped.png') if not output_file else output_file,new_img)
+
+	def compress_images(self,
+							im='A.png',
+							compression_factor=2.,
+							im_out='A.compressed.png'):
+		fx=fy=1/compression_factor
+		cv2.imwrite(im_out,cv2.resize(cv2.imread(im),None,fx=fx,fy=fy))
 
 	def register_images(self,
 							im1='A.npy',
