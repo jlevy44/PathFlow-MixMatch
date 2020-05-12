@@ -66,7 +66,7 @@ def get_matched_tissue(props,props2):
 
 def displace_image(img, displacement, gpu_device, dtype=th.float32):
 	# channels=[]
-	image=al.image_from_numpy(img,(),(), device=('cuda:{}'.format(gpu_device) if gpu_device>=0 else 'cpu'))#[...,i]
+	image=al.image_from_numpy(img,(),(), dtype=dtype, device=('cuda:{}'.format(gpu_device) if gpu_device>=0 else 'cpu'))#[...,i]
 	image_size = image.size
 	print(image_size)
 	grid = al.transformation.utils.compute_grid(image_size[:2], dtype=image.dtype, device=image.device)
@@ -80,6 +80,8 @@ def displace_image(img, displacement, gpu_device, dtype=th.float32):
 	#
 	# 	im=al.utils.image.create_tensor_image_from_itk_image(im, dtype=dtype, device=('cuda:{}'.format(gpu_device) if gpu_device>=0 else 'cpu'))
 	# 	channels.append(al.transformation.utils.warp_image(im, displacement).numpy())
+	print(out.image)
+	print(out.image.max())
 	return np.uint8(out.image.detach().cpu().numpy())#np.stack(channels).transpose((1,2,0))
 
 # Copyright 2018 University of Basel, Center for medical Image Analysis and Navigation
