@@ -66,8 +66,8 @@ def get_matched_tissue(props,props2):
 
 def displace_image(img, displacement, gpu_device, dtype=th.float32):
 	channels=[]
-	print(displacement)
 	for i in range(3):
+		print(displacement)
 		im=sitk.GetImageFromArray(img[...,i])
 		im=al.utils.image.create_tensor_image_from_itk_image(im, dtype=dtype, device=('cuda:{}'.format(gpu_device) if gpu_device>=0 else 'cpu'))
 		channels.append(al.transformation.utils.warp_image(im, displacement).numpy())
