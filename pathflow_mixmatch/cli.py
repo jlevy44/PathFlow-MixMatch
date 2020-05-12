@@ -166,7 +166,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		if half:
 			mov_im_level=mov_im_level.to(dtype=th.float16, device=device)
 
-		transformation=transformation.to(device=device)# dtype=th.float32,  if not half else th.float16
+		transformation=transformation.to(dtype=th.float32, device=device)# dtype=th.float32,  if not half else th.float16
 
 		if level > 0 and transform_type in ['bspline','wendland']:
 			print(interpolation)
