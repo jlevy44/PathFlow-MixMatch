@@ -113,7 +113,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 	moving_image.image = 1 - moving_image.image
 
 	# create pairwise registration object
-	registration = al.PairwiseRegistration()
+	registration = al.PairwiseRegistration(half=half)
 
 	transforms=dict(similarity=al.transformation.pairwise.SimilarityTransformation,
 				   affine=al.transformation.pairwise.AffineTransformation,
