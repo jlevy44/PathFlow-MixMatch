@@ -411,7 +411,7 @@ def register_images_(im1_fname='A.npy',
 						regularisation_weight=[1,5,50],
 						points1='',
 						points2='',
-						pre_transform='rigid'):
+						pre_transform=''):
 
 	print("Loading images.")
 
@@ -532,13 +532,15 @@ def register_images_(im1_fname='A.npy',
 
 		displacements=[]
 		with (suppress_stdout() if not verbose else contextlib.suppress()):
-			displacement,warp_mv_im=affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=pre_transform, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half, regularisation_weight=regularisation_weight)[:2]
-			displacements.append([displacement,warp_mv_im])
-			displacement,warp_mv_im=affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half, regularisation_weight=regularisation_weight, moving_image=warp_mv_im[1])[:2]
+			if pre_transform:
+				displacement,warp_mv_im=affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=pre_transform, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half, regularisation_weight=regularisation_weight)[:2]
+				displacements.append([displacement,warp_mv_im])
+			displacement,warp_mv_im=affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half, regularisation_weight=regularisation_weight, moving_image=(None if not pre_transform else warp_mv_im[1]))[:2]
 			displacements.append([displacement,warp_mv_im])
 
 		new_img=displace_image(im2,displacement[0][0],gpu_device=gpu_device, dtype=th.float32 if not half else th.half) # new tri, output he as well
-		new_img=displace_image(new_img,displacement[1][0],gpu_device=gpu_device, dtype=th.float32 if not half else th.half) # new tri, output he as well
+		if pre_transform:
+			new_img=displace_image(new_img,displacement[1][0],gpu_device=gpu_device, dtype=th.float32 if not half else th.half) # new tri, output he as well
 
 		if points1 and points2 and os.path.exists(points1) and os.path.exists(points2):
 			displacements_final=[]
