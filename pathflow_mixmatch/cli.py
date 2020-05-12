@@ -639,7 +639,7 @@ class Commands(object):
 							points1='',
 							points2='',
 							tre_dictionary='results.p',
-							pre_transform='rigid'):
+							pre_transform='affine'):
 		tre=register_images_(im1_fname=im1,
 							im2_fname=im2,
 							connectivity=connectivity,
