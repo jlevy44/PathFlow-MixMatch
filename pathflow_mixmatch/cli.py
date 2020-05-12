@@ -141,7 +141,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		if transform_type=='wendland':
 			transform_opts['cp_scale']=order
 
-	# transform_opts['dtype']=dtype
+	transform_opts['dtype']=th.float32 if not half else th.half
 	transform_opts['half']=half
 
 	for level, (mov_im_level, fix_im_level) in enumerate(zip(moving_image_pyramid, fixed_image_pyramid)):
@@ -171,6 +171,9 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 			transformation.init_translation(fix_im_level)
 
 		transformation=transformation.to(device=device)# dtype=th.float32,  if not half else th.float16
+		if th.cuda.is_available():
+			transformation=transformation.cuda()
+			transformation._device=("cuda:{}".format(gpu_device) if gpu_device >=0 else 'cpu')
 
 		optimizer = th.optim.Adam(transformation.parameters(), lr=lr[level], amsgrad=True)
 		opt_level = "O2" if half else "O1"
