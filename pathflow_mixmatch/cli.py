@@ -152,7 +152,7 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 			fixed_image_pyramid = al.create_image_pyramid(fixed_image, pyramid)
 			moving_image_pyramid = al.create_image_pyramid(moving_image, pyramid)
 		else:
-			sigma,fixed_image_pyramid,moving_image_pyramid=[[]],[fixed_image],[moving_image]
+			fixed_image_pyramid,moving_image_pyramid=[fixed_image],[moving_image]
 		if transform_type=='bspline':
 			transform_opts['order']=order
 		if transform_type=='wendland':
