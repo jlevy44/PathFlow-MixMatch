@@ -101,7 +101,22 @@ def displace_image(img, displacement, gpu_device, dtype=th.float32):
 # limitations under the License.
 
 
-def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similarity', gpu_device=0, opt_cm=True, sigma=[[11,11],[11,11],[3,3]], order=2, pyramid=[[4,4],[2,2]], loss_fn='mse', use_mask=False, interpolation='bicubic', half=False, regularisation_weight=[1,5,50], moving_image=None):
+def affine_register(im1, im2,
+					iterations=1000,
+					lr=0.01,
+					transform_type='similarity',
+					gpu_device=0,
+					opt_cm=True,
+					sigma=[[11,11],[11,11],[3,3]],
+					order=2,
+					pyramid=[[4,4],[2,2]],
+					loss_fn='mse',
+					use_mask=False,
+					interpolation='bicubic',
+					half=False,
+					regularisation_weight=[1,5,50],
+					moving_image=None,
+					register_joint_domain=False):
 	assert use_mask==False, "Masking not implemented"
 	assert transform_type in ['similarity', 'affine', 'rigid', 'non_parametric','bspline','wendland']
 	if half:
@@ -120,10 +135,15 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 	# load the image data and normalize to [0, 1]
 	# add mask to loss function
 	fixed_image = al.utils.image.create_tensor_image_from_itk_image(sitk.GetImageFromArray(cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY)), dtype=th.float32, device='cpu')#device,al.read_image_as_tensor("./practice_reg/1.png", dtype=dtype, device=device)#th.tensor(img1,device='cuda',dtype=dtype)#
-
-	if isinstance(moving_image,type(None)):
-		moving_image = al.utils.image.create_tensor_image_from_itk_image(sitk.GetImageFromArray(cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY)), dtype=th.float32, device='cpu')#device,al.read_image_as_tensor("./practice_reg/2.png", dtype=dtype, device=device)#th.tensor(img2,device='cuda',dtype=dtype)#
-		fixed_image, moving_image = al.utils.normalize_images(fixed_image, moving_image)
+	cm_displacement = None
+	if not moving_image:
+		if isinstance(im2, np.ndarray):
+			moving_image = al.utils.image.create_tensor_image_from_itk_image(sitk.GetImageFromArray(cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY)), dtype=th.float32, device='cpu')
+		elif isinstance(im2, al.utils.image.Image):
+			moving_image = im2
+	fixed_image, moving_image = al.utils.normalize_images(fixed_image, moving_image)
+	if register_joint_domain:
+		fixed_image, f_mask, moving_image, m_mask, cm_displacement = al.get_joint_domain_images(fixed_image, moving_image, default_value=1, cm_alignment=False, compute_masks=False)
 
 	# convert intensities so that the object intensities are 1 and the background 0. This is important in order to
 	# calculate the center of mass of the object
@@ -201,8 +221,13 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		# 	transformation._device=device
 
 
-
-		optimizer = th.optim.Adam(transformation.parameters(), lr=lr[level], amsgrad=True)
+		if isinstance(lr, float):
+			optim_lm = lr
+		elif isinstance(lr, list):
+			optim_lr = lr[level]
+		else:
+			pass
+		optimizer = th.optim.Adam(transformation.parameters(), lr=optim_lm, amsgrad=True)
 		# opt_level = "O2" if half else "O1"
 		# transformation, optimizer = amp.initialize(transformation, optimizer, opt_level=opt_level)
 
@@ -280,7 +305,14 @@ def affine_register(im1, im2, iterations=1000, lr=0.01, transform_type='similari
 		transformation_param = transformation._kernel
 	else:
 		pass
-	return displacement, (warped_image, moving_image), transformation_param, registration.loss#.data.item()
+	return {
+		'displacement': displacement,
+		'warped_image': warped_image,
+		'moving_image': moving_image,
+		'transformation_param': transformation_param,
+		'loss': registration.loss,
+		'cm_displacement': cm_displacement
+	}
 
 def get_loss(im1,im2,gpu_device):
 
@@ -295,10 +327,10 @@ def get_loss(im1,im2,gpu_device):
 	elif im1.shape[1]<im2.shape[1]:
 		im1 = cv2.copyMakeBorder(im1, 0, 0, 0, dw, cv2.BORDER_CONSTANT, value=[255,255,255])
 
-	_, _, _,loss=affine_register(np.uint8(im1), np.uint8(im2), 100, lr=0.01, transform_type='rigid', gpu_device=gpu_device)
+	affine_output=affine_register(np.uint8(im1), np.uint8(im2), 100, lr=0.01, transform_type='rigid', gpu_device=gpu_device)
 	if gpu_device>=0:
 		th.cuda.empty_cache()
-	return loss
+	return affine_output['loss']
 
 def rotate_detector(im1,im2,gpu_device):
 	angles={}
@@ -511,7 +543,7 @@ def register_images_(im1_fname='A.npy',
 					print("[{}/{}] - Begin alignment of sections.".format(idx+1,N))
 
 					with (suppress_stdout() if not verbose else contextlib.suppress()):
-						new_img=displace_image(img2,affine_register(img1, img2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half, regularisation_weight=regularisation_weight)[0],gpu_device=gpu_device, dtype=th.float32 if not half else th.half) # new tri, output he as well
+						new_img=displace_image(img2,affine_register(img1, img2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half, regularisation_weight=regularisation_weight)['displacement'],gpu_device=gpu_device, dtype=th.float32 if not half else th.half) # new tri, output he as well
 
 					if gpu_device>=0:
 						th.cuda.empty_cache()
@@ -533,14 +565,23 @@ def register_images_(im1_fname='A.npy',
 		displacements=[]
 		with (suppress_stdout() if not verbose else contextlib.suppress()):
 			if pre_transform:
-				displacement,warp_mv_im=affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=pre_transform, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half, regularisation_weight=regularisation_weight)[:2]
-				displacements.append([displacement,warp_mv_im])
-			displacement,warp_mv_im=affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half, regularisation_weight=regularisation_weight, moving_image=(None if not pre_transform else warp_mv_im[1]))[:2]
-			displacements.append([displacement,warp_mv_im])
+				print('Using pre_transform {}'.format(pre_transform))
+				reg1 = affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=pre_transform, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half, regularisation_weight=regularisation_weight, register_joint_domain=True)
+				displacement_1 = reg1['displacement']
+				new_img = displace_image(im2, displacement_1, gpu_device)
 
-		new_img=displace_image(im2,displacement[0][0],gpu_device=gpu_device, dtype=th.float32 if not half else th.half) # new tri, output he as well
-		if pre_transform:
-			new_img=displace_image(new_img,displacement[1][0],gpu_device=gpu_device, dtype=th.float32 if not half else th.half) # new tri, output he as well
+				reg2 = affine_register(im1, im2, moving_image=reg1['moving_image'], gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid, interpolation=interpolation, half=half, regularisation_weight=regularisation_weight, register_joint_domain=True)
+				displacement_2 = reg2['displacement']
+				new_img = displace_image(new_img, displacement_2, gpu_device)
+				displacements = [
+					[displacement_2, (reg2['warped_image'], reg2['moving_image'])],
+					[displacement_1, (reg1['warped_image'], reg1['moving_image'])],
+				]
+			else:
+				reg = affine_register(im1, im2, transform_type=transform_type, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half, regularisation_weight=regularisation_weight, register_joint_domain=True)
+				displacement = reg['displacement']
+				displacements.append([displacement, (reg['warped_image'], reg['moving_image'])])
+				new_img = displace_image(im2, displacement, gpu_device)
 
 		if points1 and points2 and os.path.exists(points1) and os.path.exists(points2):
 			displacements_final=[]
@@ -561,6 +602,9 @@ def register_images_(im1_fname='A.npy',
 			th.cuda.empty_cache()
 
 		print("Writing registered section to file.")
+
+		if isinstance(new_img, al.utils.image.Image):
+			new_img = new_img.numpy()
 
 		cv2.imwrite(img_out1, cv2.cvtColor(im1,cv2.COLOR_BGR2RGB))
 		cv2.imwrite(img_out2, cv2.cvtColor(new_img,cv2.COLOR_BGR2RGB))
