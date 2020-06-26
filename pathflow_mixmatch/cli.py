@@ -66,16 +66,33 @@ def get_matched_tissue(props,props2):
 
 def displace_image(img, displacement, gpu_device, dtype=th.float32):
 	# channels=[]
-	image=al.image_from_numpy(img,(),(), dtype=dtype, device=('cuda:{}'.format(gpu_device) if gpu_device>=0 else 'cpu'))#[...,i]
+	image=al.image_from_numpy(np.squeeze(img),(),(), dtype=dtype, device=('cuda:{}'.format(gpu_device) if gpu_device>=0 else 'cpu'))#[...,i]
 	image_size = image.size
 	print(image_size)
 	grid = al.transformation.utils.compute_grid(image_size[:2], dtype=image.dtype, device=image.device)
-	out=al.image_from_numpy(np.empty(image_size),(),(),device=image.device,dtype=image.dtype)
-	if len(image_size)==2:
-		out.image =  al.transformation.utils.F.grid_sample(image.image, displacement + grid)
+
+	displacement, grid, _, _ = match_image_size(np.squeeze(displacement.cpu().numpy()), np.squeeze(grid.cpu().numpy()))
+	if displacement.ndim == 2:
+		displacement = displacement[:, :, np.newaxis]
+	# elif displacement.ndim == 3:
+	# 	displacement = displacement[:, np.newaxis]
+	flow_field_grid = displacement + grid
+	if isinstance(flow_field_grid, th.Tensor):
+		flow_field_grid = flow_field_grid.cpu().numpy()
+
+	out_shape = list(flow_field_grid.shape)  # tuples are immutable
+	out_shape[-1] = 3  # change 2 to 3 in last axis
+	out = al.image_from_numpy(np.empty(out_shape), (), (), device=image.device, dtype=image.dtype)
+
+	if out.ndim == 2:
+		im1, im2 = match_image_size(image.image, flow_field_grid)
+		out.image =  al.transformation.utils.F.grid_sample(im1, im2)
 	else:
-		for i in range(image_size[-1]):
-			out.image[...,i] = al.transformation.utils.F.grid_sample(image.image[...,i], displacement + grid)
+		for i in range(out_shape[-1]):  # iterate over last axis
+			flow_field_grid, image_slice, _, _ = match_image_size(np.squeeze(flow_field_grid), np.squeeze(image.image[...,i].cpu().numpy()))
+			# https://numpy.org/doc/stable/reference/generated/numpy.expand_dims.html
+			# https://pytorch.org/docs/stable/nn.functional.html#grid-sample
+			out.image[..., i] = al.transformation.utils.F.grid_sample(th.from_numpy(image_slice[np.newaxis][np.newaxis]), th.from_numpy(flow_field_grid[np.newaxis]))
 	# for i in range(3):
 	#
 	# 	im=al.utils.image.create_tensor_image_from_itk_image(im, dtype=dtype, device=('cuda:{}'.format(gpu_device) if gpu_device>=0 else 'cpu'))
@@ -84,7 +101,7 @@ def displace_image(img, displacement, gpu_device, dtype=th.float32):
 	# print(img)
 	# print(img.max())
 	# print(img.shape)
-	return img[0][0]#np.stack(channels).transpose((1,2,0))
+	return np.squeeze(img)  # img[0][0]  # np.stack(channels).transpose((1,2,0))
 
 # Copyright 2018 University of Basel, Center for medical Image Analysis and Navigation
 #
@@ -142,13 +159,28 @@ def affine_register(im1, im2,
 		elif isinstance(im2, al.utils.image.Image):
 			moving_image = im2
 	fixed_image, moving_image = al.utils.normalize_images(fixed_image, moving_image)
-	if register_joint_domain:
-		fixed_image, f_mask, moving_image, m_mask, cm_displacement = al.get_joint_domain_images(fixed_image, moving_image, default_value=1, cm_alignment=False, compute_masks=False)
 
 	# convert intensities so that the object intensities are 1 and the background 0. This is important in order to
 	# calculate the center of mass of the object
-	fixed_image.image = 1 - fixed_image.image
-	moving_image.image = 1 - moving_image.image
+	fixed_image.image = 1. - fixed_image.image
+	moving_image.image = 1. - moving_image.image
+
+	if register_joint_domain:
+		# TODO: check this control flow
+		if transform_type == 'bspline':
+			joint_domain_interpolation = 3
+		elif interpolation == 'linear':
+			joint_domain_interpolation = 2
+		else:
+			joint_domain_interpolation = 1
+		fixed_image, f_mask, moving_image, m_mask, cm_displacement = al.get_joint_domain_images(fixed_image, moving_image, default_value=0, interpolator=joint_domain_interpolation, cm_alignment=True, compute_masks=False)
+		if cm_displacement is not None:
+			# the domains are not equal and the images were resampled
+			# https://github.com/airlab-unibas/airlab/blob/80c9d487c012892c395d63c6d937a67303c321d1/airlab/utils/domain.py#L124-L133
+			if isinstance(cm_displacement, np.ndarray):
+				# cm_displacement = th.as_tensor(cm_displacement, dtype=im2.dtype, device=device)
+				cm_displacement = th.as_tensor(cm_displacement, dtype=th.float, device=device)
+			im2 = displace_image(im2, cm_displacement, gpu_device)
 
 	# create pairwise registration object
 	registration = (al.PairwiseRegistration if transform_type != 'non_parametric' else al.DemonsRegistraion)()#half=half
@@ -182,8 +214,11 @@ def affine_register(im1, im2,
 	# transform_opts['half']=half
 
 	for level, (mov_im_level, fix_im_level) in enumerate(zip(moving_image_pyramid, fixed_image_pyramid)):
-		mov_im_level=mov_im_level.to(dtype=th.float32, device=device)
-		fix_im_level=fix_im_level.to(dtype=th.float32, device=device)
+		mov_im_level, fix_im_level, _, _ = match_image_size(mov_im_level, fix_im_level)
+
+		mov_im_level = mov_im_level.to(dtype=th.float32, device=device)
+		fix_im_level = fix_im_level.to(dtype=th.float32, device=device)
+
 		# choose the affine transformation model
 		if transform_type == 'non_parametric':
 			transform_args[0]=mov_im_level.size
@@ -192,8 +227,7 @@ def affine_register(im1, im2,
 			# for bspline, smaller sigma tuple means less loss of
 			# microarchitectural details
 			transform_args[0]=mov_im_level.size
-			# transform_opts['sigma'] = sigma[level]
-			transform_opts['sigma'] = sigma[level]#(1, 1)
+			transform_opts['sigma'] = sigma[level]
 		else:
 			transform_args[0]=mov_im_level
 
@@ -202,14 +236,15 @@ def affine_register(im1, im2,
 		# if half:
 		# 	mov_im_level=mov_im_level.to(dtype=th.float16, device=device)
 
-		# transformation=transformation.to(dtype=th.float32, device=device)# dtype=th.float32,  if not half else th.float16
+		transformation=transformation.to(dtype=th.float32, device=device)  # dtype=th.float32,  if not half else th.float16
 
 		if level > 0 and transform_type in ['bspline','wendland']:
 			print(interpolation)
 			constant_flow = al.transformation.utils.upsample_displacement(constant_flow,
 																		  mov_im_level.size,
 																		  interpolation=interpolation)
-			transformation.set_constant_flow(constant_flow)
+			constant_flow, fix_im_level, _, _ = match_image_size(constant_flow, fix_im_level)
+			transformation.set_constant_flow(constant_flow.to(device=device))
 
 		#
 		if transform_type in ['similarity', 'affine', 'rigid']:
@@ -240,9 +275,11 @@ def affine_register(im1, im2,
 					mgf=al.loss.pairwise.NGF,
 					ssim=al.loss.pairwise.SSIM)
 
+		# the loss function requires that both images are on the same device
+		# https://github.com/airlab-unibas/airlab/blob/80c9d487c012892c395d63c6d937a67303c321d1/airlab/loss/pairwise.py#L47
+		mov_im_level = mov_im_level.to(dtype=th.float32, device=device)
+		fix_im_level = fix_im_level.to(dtype=th.float32, device=device)
 
-
-		# choose the Mean Squared Error as image loss
 		image_loss = loss_fns[loss_fn](fix_im_level, mov_im_level)
 
 		registration.set_image_loss([image_loss])
@@ -266,14 +303,15 @@ def affine_register(im1, im2,
 
 		if transform_type in ['bspline','wendland']:
 			constant_flow = transformation.get_flow()
+			constant_flow, fix_im_level, _, _ = match_image_size(constant_flow, fix_im_level)
 
 	# set the intensities back to the original for the visualisation
-	fixed_image.image = 1 - fixed_image.image
-	moving_image.image = 1 - moving_image.image
+	fixed_image.image = 1. - fixed_image.image
+	moving_image.image = 1. - moving_image.image
 
 	# warp the moving image with the final transformation result
 	displacement = transformation.get_displacement()
-	warped_image = al.transformation.utils.warp_image(moving_image, displacement)
+	warped_image = al.transformation.utils.warp_image(moving_image.to(device=displacement.device), displacement)
 
 	end = time.perf_counter()
 
@@ -389,6 +427,21 @@ def rotate_image(mat, angle):
 	return rotated_mat
 
 def match_image_size(img1,img2,black_background=False):
+	ret_type_img1 = 'numpy'  # either numpy, airlab, or torch
+	ret_type_img2 = 'numpy'  # either numpy, airlab, or torch
+	if isinstance(img1, al.utils.image.Image):
+		img1 = img1.numpy()
+		ret_type_img1 = 'airlab'
+	elif isinstance(img1, th.Tensor):
+		img1 = img1.cpu().numpy()
+		ret_type_img1 = 'torch'
+	if isinstance(img2, al.utils.image.Image):
+		img2 = img2.numpy()
+		ret_type_img2 = 'airlab'
+	elif isinstance(img2, th.Tensor):
+		img2 = img1.cpu().numpy()
+		ret_type_img2 = 'torch'
+
 	white=int(black_background==False)
 	fill_color=(np.array([255,255,255])*white).astype(int).tolist()
 	dh=int(np.abs((img1.shape[0]-img2.shape[0])))
@@ -401,6 +454,17 @@ def match_image_size(img1,img2,black_background=False):
 		img2 = cv2.copyMakeBorder(img2, 0, 0, dw//2+dw%2, dw//2, cv2.BORDER_CONSTANT, value=fill_color)
 	elif img1.shape[1]<img2.shape[1]:
 		img1 = cv2.copyMakeBorder(img1, 0, 0, dw//2+dw%2, dw//2, cv2.BORDER_CONSTANT, value=fill_color)
+
+	# at this point, img1 and img2 are both numpy arrays
+
+	if ret_type_img1 == 'airlab':
+		img1 = al.utils.image.create_tensor_image_from_itk_image(sitk.GetImageFromArray(img1), dtype=th.float32)
+	elif ret_type_img1 == 'torch':
+		img1 = th.from_numpy(img1)
+	if ret_type_img2 == 'airlab':
+		img2 = al.utils.image.create_tensor_image_from_itk_image(sitk.GetImageFromArray(img2), dtype=th.float32)
+	elif ret_type_img2 == 'torch':
+		img2 = th.from_numpy(img2)
 	return img1, img2, dw//2+dw%2, dh//2+dh%2
 # add moments, first image should have 1+ corresponding segments / 2 sections
 # while first has fewer sections
@@ -462,6 +526,9 @@ def register_images_(im1_fname='A.npy',
 		output_dir,
 		f"{img_splitext2[0]}_registered{img_splitext2[1]}"
 	)
+
+	# TODO: load images with airlab.utils.image.read_image_as_tensor
+	# https://airlab.readthedocs.io/en/latest/_modules/airlab/utils/image.html#read_image_as_tensor
 
 	if file_ext=='.npy':
 		im1=np.load(im1_fname)
@@ -565,6 +632,15 @@ def register_images_(im1_fname='A.npy',
 		displacements=[]
 		with (suppress_stdout() if not verbose else contextlib.suppress()):
 			if pre_transform:
+				# tensor_img1 = al.utils.image.create_tensor_image_from_itk_image(sitk.GetImageFromArray(cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY)), dtype=th.float32)
+				# tensor_img2 = al.utils.image.create_tensor_image_from_itk_image(sitk.GetImageFromArray(cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY)), dtype=th.float32)
+				# displacement_1,warp_mv_im_1=affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=pre_transform, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half, regularisation_weight=regularisation_weight)[:2]
+				# fixed_image, moving_image = al.utils.normalize_images(al.utils.image.image_from_numpy(im1), al.utils.image.image_from_numpy(im2))
+				# fixed_image, f_mask, moving_image, m_mask, cm_displacement = al.get_joint_domain_images(im1, im2, default_value=0, interpolator=2, cm_alignment=True, compute_masks=False)
+				# output_reg=affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=pre_transform, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half, regularisation_weight=regularisation_weight,register_joint_domain=True)
+				# cm_displacement,displacement_1,warp_mv_im_1=output_reg['cm_displacement'],output_reg['displacement'], output_reg['warped_image'])
+				# new_img = warp_mv_im_1
+
 				print('Using pre_transform {}'.format(pre_transform))
 				reg1 = affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=pre_transform, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half, regularisation_weight=regularisation_weight, register_joint_domain=True)
 				displacement_1 = reg1['displacement']
@@ -577,6 +653,30 @@ def register_images_(im1_fname='A.npy',
 					[displacement_2, (reg2['warped_image'], reg2['moving_image'])],
 					[displacement_1, (reg1['warped_image'], reg1['moving_image'])],
 				]
+
+				# print(cm_displacement)
+				# print(type(cm_displacement))
+
+				# displacement_1,warp_mv_im_1=affine_register(im1, im2, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=pre_transform, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half, regularisation_weight=regularisation_weight)[:2]
+				# displacements.append([displacement_1,warp_mv_im_1])
+				# displacement_2,warp_mv_im_2=affine_register(im1, warp_mv_im_1[0], gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, transform_type=transform_type, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half, regularisation_weight=regularisation_weight, moving_image=warp_mv_im_1[1])[:2]
+				# displacements.append([displacement_2,warp_mv_im_2])
+				# new_img=displace_image(fixed_image.numpy(),cm_displacement,gpu_device=gpu_device, dtype=th.float32 if not half else th.half) # new tri, output he as well
+				# new_img=displace_image(new_img,displacement_2,gpu_device=gpu_device, dtype=th.float32 if not half else th.half) # new tri, output he as well
+
+				# mask,labels=label_objects(im1, connectivity=connectivity, min_object_size=min_object_size, apply_watershed=apply_watershed)
+				# mask2,labels2=label_objects(im2, connectivity=connectivity, min_object_size=min_object_size, apply_watershed=apply_watershed)
+				#
+				# print("Estimating section properties.")
+				#
+				# props = pd.DataFrame(measure.regionprops_table(labels, cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY),properties=['bbox', 'area', 'orientation']))
+				# props2 = pd.DataFrame(measure.regionprops_table(labels2, cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY),properties=['bbox', 'area', 'orientation']))
+				# print(props)
+				# print(props2)
+				#
+				#
+				# bboxes=pd.DataFrame(measure.regionprops_table(labels,cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY),properties=['bbox']))
+				# bboxes2=pd.DataFrame(measure.regionprops_table(labels2,cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY),properties=['bbox']))
 			else:
 				reg = affine_register(im1, im2, transform_type=transform_type, gpu_device=gpu_device, lr=lr, loss_fn=loss_fn, iterations=iterations, opt_cm=opt_cm, sigma=sigma, order=order, pyramid=pyramid,interpolation=interpolation, half=half, regularisation_weight=regularisation_weight, register_joint_domain=True)
 				displacement = reg['displacement']
