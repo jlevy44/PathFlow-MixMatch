@@ -85,7 +85,7 @@ def displace_image(img, displacement, gpu_device, dtype=th.float32):
 	out = al.image_from_numpy(np.empty(out_shape), (), (), device=image.device, dtype=image.dtype)
 
 	if out.ndim == 2:
-		im1, im2 = match_image_size(image.image, flow_field_grid)
+		im1, im2, _, _ = match_image_size(image.image, flow_field_grid)
 		out.image =  al.transformation.utils.F.grid_sample(im1, im2)
 	else:
 		for i in range(out_shape[-1]):  # iterate over last axis
@@ -173,7 +173,7 @@ def affine_register(im1, im2,
 			joint_domain_interpolation = 2
 		else:
 			joint_domain_interpolation = 1
-		fixed_image, f_mask, moving_image, m_mask, cm_displacement = al.get_joint_domain_images(fixed_image, moving_image, default_value=0, interpolator=joint_domain_interpolation, cm_alignment=True, compute_masks=False)
+		fixed_image, _, moving_image, _, cm_displacement = al.get_joint_domain_images(fixed_image, moving_image, default_value=0, interpolator=joint_domain_interpolation, cm_alignment=True, compute_masks=False)
 		if cm_displacement is not None:
 			# the domains are not equal and the images were resampled
 			# https://github.com/airlab-unibas/airlab/blob/80c9d487c012892c395d63c6d937a67303c321d1/airlab/utils/domain.py#L124-L133
