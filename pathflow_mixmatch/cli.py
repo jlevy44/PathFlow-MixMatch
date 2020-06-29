@@ -257,12 +257,12 @@ def affine_register(im1, im2,
 
 
 		if isinstance(lr, float):
-			optim_lm = lr
-		elif isinstance(lr, list):
+			optim_lr = lr
+		elif isinstance(lr, (list, tuple)):
 			optim_lr = lr[level]
 		else:
 			pass
-		optimizer = th.optim.Adam(transformation.parameters(), lr=optim_lm, amsgrad=True)
+		optimizer = th.optim.Adam(transformation.parameters(), lr=optim_lr, amsgrad=True)
 		# opt_level = "O2" if half else "O1"
 		# transformation, optimizer = amp.initialize(transformation, optimizer, opt_level=opt_level)
 
