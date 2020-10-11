@@ -426,7 +426,7 @@ def correct_rotation(im1, im2, scaling_factor=4, gpu_device=0):
     print("Ideal rotation angle: {}.".format(angle))
     return np.rot90(im2,angle//90)
 
-def rotate_image(mat, angle):
+def rotate_image(mat, angle, center=None):
     """
     https://stackoverflow.com/questions/43892506/opencv-python-rotate-image-without-cropping-sides/47248339
     Rotates an image (angle in degrees) and expands image to avoid cropping
@@ -435,7 +435,7 @@ def rotate_image(mat, angle):
     height, width = mat.shape[:2] # image shape has 3 dimensions
     image_center = (width/2, height/2) # getRotationMatrix2D needs coordinates in reverse order (width, height) compared to shape
 
-    rotation_mat = cv2.getRotationMatrix2D(image_center, angle, 1.)
+    rotation_mat = cv2.getRotationMatrix2D(image_center if center is None else center, angle, 1.)
 
     # rotation calculates the cos and sin, taking absolutes of those.
     abs_cos = np.abs(rotation_mat[0,0])
